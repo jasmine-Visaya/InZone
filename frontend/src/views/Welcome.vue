@@ -86,14 +86,15 @@ async function handleSubmit() {
     } else {
       // Single endpoint; the backend decides the account role.
       const role = String(data.user?.role || '').toUpperCase();
-      const destination = role === 'STUDENT'
-        ? '/student/dashboard'
-        : role === 'SUPERVISOR'
-          ? '/supervisor/dashboard'
-          : null;
+      const destinations: Record<string, string> = {
+        STUDENT: '/student/dashboard',
+        SUPERVISOR: '/supervisor/dashboard',
+        ADMIN: '/admin/dashboard',
+      };
+      const destination = destinations[role];
 
       if (!destination) {
-        throw new Error('This portal currently supports Student and Supervisor accounts only.');
+        throw new Error('Your account role is not supported by this portal.');
       }
       if (!data.token) {
         throw new Error('No login token was returned by the server.');
@@ -123,15 +124,15 @@ async function handleSubmit() {
                 <div class="brand-mark"><IonIcon :icon="locationOutline" /></div>
                 <span>InZone<span class="brand-dot">.</span></span>
               </div>
-              <span class="portal-chip">STUDENT &amp; SUPERVISOR</span>
+              <span class="portal-chip">STUDENT · SUPERVISOR · ADMIN</span>
             </div>
 
             <div class="hero-copy">
               <p class="eyebrow"><span class="status-dot"></span> SMART OJT MONITORING</p>
               <h1>Your OJT journey,<br /><em>all in one zone.</em></h1>
               <p class="hero-description">
-                One secure space for students to manage OJT progress and supervisors
-                to review the internship journey.
+                One secure space for students, supervisors, and administrators
+                to manage the OJT journey.
               </p>
             </div>
 
@@ -152,13 +153,13 @@ async function handleSubmit() {
             <p class="brand-footer">One login. The right workspace for every role.</p>
           </aside>
 
-          <section class="form-panel" aria-label="Student and supervisor authentication">
-            <div class="form-topline"><IonIcon :icon="schoolOutline" /> ONE ACCOUNT LOGIN · TWO WORKSPACES</div>
+          <section class="form-panel" aria-label="InZone account authentication">
+            <div class="form-topline"><IonIcon :icon="schoolOutline" /> ONE LOGIN · THREE WORKSPACES</div>
             <h2>{{ isSignup ? 'Join InZone' : 'Welcome back!' }}</h2>
             <p class="form-intro">
               {{ isSignup
-                ? 'Student registration · supervisor accounts are issued by your coordinator.'
-                : 'Students and supervisors sign in here using their approved account.' }}
+                ? 'Student registration only · supervisor and admin accounts are issued by authorized staff.'
+                : 'Students, supervisors, and administrators sign in with their approved account.' }}
             </p>
 
             <div class="mode-switch" role="group" aria-label="Choose login or registration">
@@ -226,14 +227,14 @@ async function handleSubmit() {
 
             <div v-if="isSignup" class="approval-note">
               <IonIcon :icon="shieldCheckmarkOutline" />
-              <span>Student registration is pending until approved. Supervisor accounts must be assigned by an administrator.</span>
+              <span>Student registration requires approval. Supervisor and administrator accounts must be provisioned by authorized staff.</span>
             </div>
 
             <p class="form-switch-note">
               {{ isSignup ? 'Already registered?' : 'New to InZone?' }}
               <button type="button" @click="setMode(!isSignup)">{{ isSignup ? 'Sign in' : 'Create an account' }}</button>
             </p>
-            <p class="security-footer"><IonIcon :icon="shieldCheckmarkOutline" /> Secure student access · InZone © 2026</p>
+            <p class="security-footer"><IonIcon :icon="shieldCheckmarkOutline" /> Secure role-based access · InZone © 2026</p>
           </section>
         </div>
       </main>

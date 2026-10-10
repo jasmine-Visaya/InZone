@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from "@ionic/vue-router";
 import type { RouteRecordRaw } from "vue-router";
 
-// One public login page for Student and Supervisor.
+// One public login page for Student, Supervisor, and Admin.
 const routes: RouteRecordRaw[] = [
   {
     path: "/",
@@ -12,6 +12,7 @@ const routes: RouteRecordRaw[] = [
   // Older links still work, but open the same shared login page.
   { path: "/home", redirect: "/" },
   { path: "/supervisor/login", redirect: "/" },
+  { path: "/admin/login", redirect: "/" },
 
   // Student panel
   {
@@ -40,6 +41,14 @@ const routes: RouteRecordRaw[] = [
     name: "SupervisorDashboard",
     component: () => import("../views/supervisor/SupervisorDashboard.vue"),
     meta: { requiresAuth: true, role: "SUPERVISOR" },
+  },
+
+  // Admin panel — UI shell; admin management APIs are not implemented here.
+  {
+    path: "/admin/dashboard",
+    name: "AdminDashboard",
+    component: () => import("../views/admin/AdminDashboard.vue"),
+    meta: { requiresAuth: true, role: "ADMIN" },
   },
 ];
 
