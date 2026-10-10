@@ -1,110 +1,114 @@
-# InZone — API Documentation
+# InZone — OJT Geo-Fencing API Documentation
 
-**Project:** InZone — OJT Geo-Fencing Tracking System
-**Backend:** Node.js + Express.js
-**Database and storage:** Supabase PostgreSQL + Supabase Storage
-**Frontend:** Ionic + Vue
-**Authentication:** JWT Bearer Token
+## Base URL
 
-## 1. Base URL
-
-Local backend:
+Local development:
 
 `http://localhost:5000`
 
-The full endpoint URL depends on how the router is mounted in `src/app.js`.
+All endpoints below use this base URL unless stated otherwise.
 
-For example, if the attendance router is mounted at `/api/attendance`, the time-in URL is:
+## Authentication
 
-`http://localhost:5000/api/attendance/time-in`
+Protected endpoints require this HTTP header:
 
-**For frontend integration:** `localhost` refers to the device running the backend. If the frontend runs on another device, use an accessible backend address instead.
+`Authorization: Bearer <JWT_TOKEN>`
+
+Obtain the token by logging in through `/api/auth/login`. The token expires after one day.
+
+## 1. Health Check
+
+**GET** `/api/health`
+
+Checks whether the API is running.
 
 ## 2. Authentication
 
-Protected endpoints require a valid JWT.
-
-Include this header:
-
-`Authorization: Bearer YOUR_JWT_TOKEN`
-
-Obtain a token through the login endpoint. Never hardcode tokens or secrets into the frontend or commit them to GitHub.
-
 ### Register
 
-* Method: `POST`
-* Route: `/register` relative to the authentication router
-* Authentication: Not required by the shown route
+**POST** `/api/auth/register`
 
-Request fields should match the backend registration controller. Confirm the exact required fields before implementing the form.
-
-### Login
-
-* Method: `POST`
-* Route: `/login` relative to the authentication router
-* Authentication: Not required by the shown route
-
-Example request:
+Request body:
 
 ```json
 {
-  "email": "student@example.com",
-  "password": "your-test-password"
+  "first_name": "Juan",
+  "last_name": "Dela Cruz",
+  "email": "juan@example.com",
+  "password": "your_password"
 }
 ```
 
-Use the JWT returned by a successful login for protected requests.
+All fields are required. A new account must be approved before the user can log in.
 
-## 3. Student OJT Profile
+Success: `201 Created`
 
-The following routes are defined in the OJT router. All require authentication.
+### Login
 
-| Method | Route      | Purpose                                      |
-| ------ | ---------- | -------------------------------------------- |
-| POST   | `/profile` | Create an OJT profile                        |
-| GET    | `/profile` | Retrieve the authenticated student's profile |
-| PUT    | `/profile` | Update the authenticated student's profile   |
+**POST** `/api/auth/login`
 
-Request fields and response structures must be confirmed against `ojtController.js`.
+Request body:
+
+```json
+{
+  "email": "juan@example.com",
+  "password": "your_password"
+}
+```
+
+Success response includes `token` and `user`.
+
+Possible errors: `400` missing fields, `401` invalid credentials, `403` account not approved.
+
+## 3. OJT Profile
+
+All endpoints require authentication.
+
+| Method | Endpoint           | Purpose                          |
+| ------ | ------------------ | -------------------------------- |
+| POST   | `/api/ojt/profile` | Create a profile                 |
+| GET    | `/api/ojt/profile` | Get the signed-in user's profile |
+| PUT    | `/api/ojt/profile` | Update the profile               |
+
+Example request body:
+
+```json
+{
+  "company_name": "ABC Technology Solutions",
+  "company_address": "Calapan City, Oriental Mindoro",
+  "required_hours": 486,
+  "start_date": "2026-10-12",
+  "end_date": "2027-01-14"
+}
+```
+
+`company_name` is required. The current controller defaults `required_hours` to `486` when the value is falsy.
 
 ## 4. Geofencing
 
-The following routes are defined in the geofence router. Both require authentication.
+All endpoints require authentication.
 
-| Method | Route    | Purpose                             |
-| ------ | -------- | ----------------------------------- |
-| POST   | `/`      | Create a geofence                   |
-| POST   | `/check` | Check a location against a geofence |
+### Create a geofence
 
-The frontend should send the location coordinates and any other fields required by `geofenceController.js`.
+**POST** `/api/geofences`
 
-The backend validates whether the supplied location is inside the configured geofence. Use the actual controller response to display the result.
+```json
+{
+  "name": "ABC Technology Solutions",
+  "address": "Calapan City, Oriental Mindoro",
+  "latitude": 13.4119,
+  "longitude": 121.1803,
+  "radius_meters": 100
+}
+```
 
-## 5. Attendance
+The geofence is linked to the signed-in user's OJT profile. The default radius is 100 meters.
 
-The attendance routes require authentication.
+Possible errors include `400` missing required fields, `404` missing profile, and `409` when a geofence already exists.
 
-### Time-in
+### Check a geofence
 
-* Method: `POST`
-* Route: `/time-in`
-* Content type: `multipart/form-data`
-
-Fields:
-
-* `latitude`: Current latitude
-* `longitude`: Current longitude
-* `photo`: Image file (JPEG, PNG, or WEBP; maximum 5 MB)
-
-The backend validates the location, uploads the photo proof to private Supabase Storage, and saves the attendance record.
-
-### Time-out
-
-* Method: `POST`
-* Route: `/time-out`
-* Content type: `application/json`
-
-Example request:
+**POST** `/api/geofences/check`
 
 ```json
 {
@@ -113,105 +117,114 @@ Example request:
 }
 ```
 
-The backend checks the location and existing attendance record before recording time-out.
+The response includes `inside_geofence`, `distance_meters`, and basic geofence information.
 
-### My attendance history
+## 5. Attendance
 
-* Method: `GET`
-* Route: `/my-history`
+All endpoints require authentication.
 
-Returns the authenticated student's attendance history.
+### Time-in
 
-### View photo proof
+**POST** `/api/attendance/time-in`
 
-* Method: `GET`
-* Route: `/photo-proof/:attendanceId`
+Content type: `multipart/form-data`
 
-Replace `:attendanceId` with the attendance record ID.
+Fields:
 
-The endpoint returns a temporary signed URL only after its authorization check succeeds. The URL expires after five minutes.
+* `latitude` — required numeric coordinate
+* `longitude` — required numeric coordinate
+* `photo` — required JPEG, PNG, or WEBP image, maximum 5 MB
 
-## 6. Weekly Accomplishment Reports
+The student must be inside the assigned geofence. A successful request creates an attendance record and uploads the photo proof to private Supabase Storage.
 
-The submitted controller defines the following student operations. Their full URLs depend on the Express routes that invoke these functions.
+Success: `201 Created`
 
-### Submit weekly report
+Possible errors include `400` invalid fields or photo, `403` outside the geofence, `404` missing profile or geofence, and `409` duplicate time-in.
 
-* Method: Expected to be `POST`
-* Function: `submitWeeklyReport`
-* Authentication: Must be enforced by its route
+### Time-out
 
-Request body:
+**POST** `/api/attendance/time-out`
+
+Content type: `application/json`
+
+```json
+{
+  "latitude": 13.4122,
+  "longitude": 121.1805
+}
+```
+
+The student must have a time-in record for the current Philippine date and be inside the geofence. The response includes the updated attendance and `hours_worked`.
+
+### Attendance history
+
+**GET** `/api/attendance/my-history`
+
+Returns the signed-in user's attendance records, count, and total recorded hours.
+
+### Retrieve photo proof
+
+**GET** `/api/attendance/photo-proof/:attendanceId`
+
+Example:
+
+`/api/attendance/photo-proof/e2d144d2-a4ff-4ab5-9bfc-7bb93a084be4`
+
+The student who owns the record or an authorized linked supervisor may retrieve a temporary signed photo URL. The URL expires after 300 seconds.
+
+## 6. Weekly Reports
+
+All endpoints require authentication.
+
+### Submit a report
+
+**POST** `/api/weekly-reports/submit`
 
 ```json
 {
   "week_start": "2026-10-12",
   "week_end": "2026-10-18",
-  "report": "Completed assigned OJT tasks and documented the work performed."
+  "report": "Completed assigned tasks and assisted with system testing."
 }
 ```
 
-The controller validates the dates and report text, prevents duplicate submissions for the same week, and creates a report with `PENDING` status.
+All three fields are required. The report is submitted with a pending status for review.
 
-### View my reports
+### Get my reports
 
-* Method: Expected to be `GET`
-* Function: `getMyReports`
-* Authentication: Must be enforced by its route
+**GET** `/api/weekly-reports/my-reports`
 
-Returns the authenticated student's reports, including status, supervisor comments, and review date.
+Returns the signed-in user's reports and their review status.
 
-## 7. Supervisor Report Review
+## 7. Supervisor Reports
 
-The supplied controller defines two supervisor-related operations. Their route paths and middleware still need verification.
+Both endpoints require a valid JWT and supervisor-role authorization.
 
-### View pending reports
+### Get pending reports
 
-Function: `getPendingReports`
+**GET** `/api/supervisor/reports/pending`
 
-Returns pending weekly reports with student information.
+Returns pending weekly reports for supervisor review.
 
-### Approve or reject a report
+### Review a report
 
-Function: `reviewReport`
+**PATCH** `/api/supervisor/reports/:reportId/review`
 
-The controller expects a `reportId` route parameter and this request body:
+Example request:
 
 ```json
 {
   "status": "APPROVED",
-  "supervisor_comment": "The submitted accomplishments have been reviewed."
+  "supervisor_comment": "Weekly accomplishments reviewed."
 }
 ```
 
-Allowed statuses are `APPROVED` and `REJECTED`.
+The `status` must be `APPROVED` or `REJECTED`. The review operation should only update reports that are still pending.
 
-The controller records the reviewing supervisor's ID and review timestamp.
+## General Notes
 
-**Security requirement:** The actual routes must enforce authentication and supervisor-role authorization. Verify that supervisors can review only reports they are authorized to handle.
-
-## 8. Common response format
-
-Responses generally include a `success` field and a message. Some responses also include the relevant record or data.
-
-Example:
-
-```json
-{
-  "success": true,
-  "message": "Request completed successfully."
-}
-```
-
-Actual response fields and HTTP status codes vary by endpoint. Use the backend implementation and Postman tests as the source of truth.
-
-## 9. Frontend integration rules
-
-* Use the actual backend URL configured for the current development environment.
-* Send the JWT in the `Authorization` header for protected endpoints.
-* Use `multipart/form-data` for time-in photo uploads.
-* Request location permission before attempting geofenced attendance.
-* Display backend validation messages when a request fails.
-* Keep the photo-proof Storage bucket private.
-* Never put `.env` credentials or service-role keys in the frontend.
-* Coordinate changes to request fields and API responses with the backend developer.
+* Send JSON requests with `Content-Type: application/json`, except photo time-in requests.
+* Never put the Supabase service-role key or database password in the frontend.
+* Do not commit `.env` to GitHub.
+* Use an accessible deployed API URL when testing from another device; `localhost` refers to the device making the request.
+* The testing endpoints mounted under `/api/test` are development-only and should be reviewed before deployment.
