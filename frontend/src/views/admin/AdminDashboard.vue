@@ -2,6 +2,9 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonPage, IonContent, IonIcon } from '@ionic/vue';
+import InZoneTopbar from '@/components/InZoneTopbar.vue';
+import AdminBottomNav from './AdminBottomNav.vue';
+
 import {
   locationOutline,
   shieldCheckmarkOutline,
@@ -67,22 +70,12 @@ const modules = [
 <template>
   <IonPage>
     <IonContent :fullscreen="true" class="admin-content">
+      <InZoneTopbar role="ADMIN" />
       <div class="admin-page">
-        <header class="topbar">
-          <div class="brand">
-            <span class="logo"><IonIcon :icon="locationOutline" /></span>
-            <span class="brand-name">InZone<span>.</span></span>
-            <span class="portal-label">ADMIN PORTAL</span>
-          </div>
-          <button type="button" class="logout" @click="logout">
-            <IonIcon :icon="logOutOutline" /> Log out
-          </button>
-        </header>
 
         <main class="main">
           <section class="intro">
             <div>
-              <p class="eyebrow"><IonIcon :icon="shieldCheckmarkOutline" /> SYSTEM ADMINISTRATION</p>
               <h1>Welcome back, <span>{{ firstName }}.</span></h1>
               <p class="intro-text">Your InZone administration workspace is ready to build.</p>
             </div>
@@ -136,6 +129,7 @@ const modules = [
         <footer class="footer">InZone © 2026 · OJT Attendance & Monitoring System</footer>
       </div>
     </IonContent>
+    <AdminBottomNav />
   </IonPage>
 </template>
 
@@ -150,11 +144,27 @@ const modules = [
 .portal-label { color: #0a8060; font-size: 10px; font-weight: 850; letter-spacing: 1px; background: #e7f7ed; border-radius: 100px; padding: 8px 10px; }
 .logout { display: inline-flex; align-items: center; gap: 8px; background: #eaf6ef; color: #086e54; border: 0; border-radius: 11px; padding: 12px 15px; font-weight: 800; cursor: pointer; }
 .logout:hover { background: #dceee4; }
-.main { max-width: 1240px; margin: 0 auto; padding: 42px clamp(18px, 5vw, 46px) 65px; }
+.main {
+  max-width: 1240px;
+  margin: 0 auto;
+
+  padding: 16px clamp(18px, 5vw, 46px)
+    calc(140px + env(safe-area-inset-bottom, 0px));
+}
 .intro { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 28px; }
 .eyebrow { margin: 0 0 12px; display: flex; align-items: center; gap: 8px; color: #0c8663; font-size: 11px; letter-spacing: 1.3px; font-weight: 850; }
-h1 { margin: 0; color: #174334; font-weight: 850; letter-spacing: -1.5px; font-size: clamp(30px, 4.2vw, 46px); }
-h1 span { color: #079469; }
+.intro h1 {
+  margin: 0;
+  color: #133e30;
+  font-size: clamp(30px, 4vw, 43px);
+  font-weight: 850;
+  letter-spacing: -1.2px;
+  line-height: 1.15;
+}
+
+.intro h1 span {
+  color: #16a576;
+}
 .intro-text { color: #738f7c; font-size: 14px; margin: 12px 0 0; }
 .account-chip { min-width: 200px; display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid #dceae1; border-radius: 15px; padding: 15px; box-shadow: 0 8px 25px #1c614110; }
 .account-chip > ion-icon { color: #10a471; font-size: 24px; flex-shrink: 0; }
@@ -183,6 +193,60 @@ h1 span { color: #079469; }
 .info-note p { margin: 0; font-size: 12px; line-height: 1.8; }
 .info-note code { font-size: 11px; }
 .footer { border-top: 1px solid #deebe3; padding: 24px 15px; text-align: center; color: #8ba398; font-size: 11px; }
-@media (max-width: 1000px) { .modules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .intro { align-items: flex-start; } }
-@media (max-width: 650px) { .topbar { padding: 15px 17px; } .portal-label { display: none; } .logout { padding: 10px; font-size: 12px; } .main { padding: 25px 16px 45px; } .intro { flex-direction: column; align-items: stretch; } .hero { padding: 27px 23px; } .hero-symbol { display: none; } .section-heading { flex-direction: column; align-items: flex-start; } .modules-grid { grid-template-columns: 1fr; gap: 13px; } .module-card p { min-height: auto; } .info-note { padding: 16px; } }
+
+
+/* =====================================
+   TABLET
+===================================== */
+@media (max-width: 1000px) {
+  .modules-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .intro {
+    align-items: flex-start;
+  }
+}
+
+/* =====================================
+   MOBILE
+===================================== */
+@media (max-width: 650px) {
+  .main {
+    padding: 16px 16px
+      calc(140px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .intro {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero {
+    padding: 27px 23px;
+  }
+
+  .hero-symbol {
+    display: none;
+  }
+
+  .section-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .modules-grid {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+
+  .module-card p {
+    min-height: auto;
+  }
+
+  .info-note {
+    padding: 16px;
+  }
+}
+
 </style>

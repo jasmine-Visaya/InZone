@@ -7,7 +7,8 @@ const geofenceRoutes = require("../routes/geofenceRoutes");
 const attendanceRoutes = require("../routes/attendanceRoutes");
 const weeklyReportRoutes = require("../routes/weeklyReportRoutes");
 const supervisorReportRoutes = require("../routes/supervisorReportRoutes");
-
+const ojtApprovalRoutes = require("../routes/ojtApprovalRoutes");
+const adminStudentRoutes = require("../routes/adminStudentRoutes");
 //tesing lang
 const testRoutes = require("../routes/testRoutes");
 
@@ -23,6 +24,10 @@ app.get("/api/health", (req, res) => {
     });
 });
 
+const placesRoutes = require("../routes/placesRoutes");
+
+app.use("/api/places", placesRoutes);
+
 // Authentication routes
 app.use("/api/auth", authRoutes);
 app.use("/api/ojt", ojtRoutes);
@@ -30,6 +35,8 @@ app.use("/api/geofences", geofenceRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/weekly-reports", weeklyReportRoutes);
 app.use("/api/supervisor/reports", supervisorReportRoutes);
+app.use("/api/ojt/review", ojtApprovalRoutes);
+app.use("/api/admin/students", adminStudentRoutes);
 
 //testing lang
 app.use("/api/test", testRoutes);

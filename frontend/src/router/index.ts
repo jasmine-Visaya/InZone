@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "@ionic/vue-router";
 import type { RouteRecordRaw } from "vue-router";
+import OJTApprovals from '../views/admin/OJTApprovals.vue';
 
 // One public login page for Student, Supervisor, and Admin.
 const routes: RouteRecordRaw[] = [
@@ -34,7 +35,25 @@ const routes: RouteRecordRaw[] = [
     component: () => import("../views/student/StudentAttendance.vue"),
     meta: { requiresAuth: true, role: "STUDENT" },
   },
-
+    {
+      path: "/student/track",
+      name: "StudentTrack",
+      component: () => import("../views/student/TrackPage.vue"),
+      meta: {
+        requiresAuth: true,
+        role: "STUDENT",
+      },
+    },
+    {
+      path: '/student/reports',
+      name: 'StudentReports',
+      component: () =>
+        import('../views/student/StudentReports.vue'),
+      meta: {
+        requiresAuth: true,
+        role: 'STUDENT',
+      },
+    },
   // Supervisor panel
   {
     path: "/supervisor/dashboard",
@@ -49,6 +68,25 @@ const routes: RouteRecordRaw[] = [
     name: "AdminDashboard",
     component: () => import("../views/admin/AdminDashboard.vue"),
     meta: { requiresAuth: true, role: "ADMIN" },
+  },
+  {
+    path: '/admin/ojt-approvals',
+    name: 'AdminOJTApprovals',
+    component: OJTApprovals,
+    meta: {
+      requiresAuth: true,
+      role: 'ADMIN',
+    },
+  },
+  {
+    path: "/admin/students",
+    name: "AdminStudents",
+    component: () =>
+      import("../views/admin/AdminStudents.vue"),
+    meta: {
+      requiresAuth: true,
+      role: "ADMIN",
+    },
   },
 ];
 
