@@ -9,6 +9,8 @@ const weeklyReportRoutes = require("../routes/weeklyReportRoutes");
 const supervisorReportRoutes = require("../routes/supervisorReportRoutes");
 const ojtApprovalRoutes = require("../routes/ojtApprovalRoutes");
 const adminStudentRoutes = require("../routes/adminStudentRoutes");
+const adminReportRoutes = require("../routes/adminReportRoutes");
+
 //tesing lang
 const testRoutes = require("../routes/testRoutes");
 
@@ -37,6 +39,7 @@ app.use("/api/weekly-reports", weeklyReportRoutes);
 app.use("/api/supervisor/reports", supervisorReportRoutes);
 app.use("/api/ojt/review", ojtApprovalRoutes);
 app.use("/api/admin/students", adminStudentRoutes);
+app.use("/api/admin/reports", adminReportRoutes);
 
 //testing lang
 app.use("/api/test", testRoutes);
