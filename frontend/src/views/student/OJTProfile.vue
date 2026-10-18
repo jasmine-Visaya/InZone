@@ -1,7 +1,9 @@
 <script setup lang="ts">
 
 import InZoneTopbar from '@/components/InZoneTopbar.vue';
+
 import StudentBottomNav from './StudentBottomNav.vue';
+import InZoneMapViewer from '@/components/InZoneMapViewer.vue';
 
 import { onMounted, onUnmounted, reactive, ref } from 'vue';
 
@@ -41,39 +43,48 @@ import {
 
 } from 'ionicons/icons';
 
-
-
 type ApprovalStatus =
+
   | 'PENDING'
+
   | 'APPROVED'
+
   | 'REJECTED';
 
 interface OjtProfile {
+
   id?: number;
+
   company_name: string;
+
   company_address: string | null;
+
   required_hours: number | string | null;
+
   start_date: string | null;
+
   end_date: string | null;
 
   approval_status?: ApprovalStatus;
-  rejection_reason?: string | null;
-  reviewed_at?: string | null;
-}
 
+  rejection_reason?: string | null;
+
+  reviewed_at?: string | null;
+
+}
 
 const router = useRouter();
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-
 
 const loading = ref(true);
 
 const saving = ref(false);
 
 const hasProfile = ref(false);
+
 const approvalStatus = ref<ApprovalStatus | null>(null);
+
 const rejectionReason = ref<string | null>(null);
 
 const editing = ref(false);
@@ -85,26 +96,19 @@ const formError = ref('');
 const message = ref('');
 
 const studentName = ref('Student');
-
-
+const showAddressMap = ref(false);
 
 // Student schedule settings (used only in the frontend to estimate end date).
-
 // Defaults: 8 hours per day, Monday-Friday. Holidays and absences are not counted.
-
 const hoursPerDay = ref(8);
 
 const workSchedule = ref<'weekdays' | 'mon-sat'>('weekdays');
 
 const autoEndDate = ref(true);
 
-
-
 function updateEndDate() {
 
   if (!autoEndDate.value) return;
-
-
 
   const required = Number(form.required_hours);
 
@@ -122,8 +126,6 @@ function updateEndDate() {
 
   }
 
-
-
   const [year, month, day] = form.start_date.split('-').map(Number);
 
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -138,10 +140,7 @@ function updateEndDate() {
 
   }
 
-
-
   // A partial final day still uses that date: e.g. 486 / 8 = 61 workdays.
-
   let daysLeft = Math.ceil(required / daily);
 
   while (daysLeft > 0) {
@@ -162,23 +161,16 @@ function updateEndDate() {
 
 }
 
-
-
 function setAutoEndDate() {
 
   if (autoEndDate.value) updateEndDate();
 
 }
 
-
-
 // Calendar controls for both OJT dates.
-
 const startDateInput = ref<HTMLInputElement | null>(null);
 
 const endDateInput = ref<HTMLInputElement | null>(null);
-
-
 
 function openDatePicker(which: 'start' | 'end') {
 
@@ -189,7 +181,6 @@ function openDatePicker(which: 'start' | 'end') {
   try {
 
     // Chrome, Edge and modern mobile browsers support the native picker.
-
     if (typeof input.showPicker === 'function') {
 
       input.showPicker();
@@ -205,7 +196,6 @@ function openDatePicker(which: 'start' | 'end') {
   } catch {
 
     // Fall back to the editable date field if a browser restricts showPicker().
-
     input.focus();
 
     input.click();
@@ -213,8 +203,6 @@ function openDatePicker(which: 'start' | 'end') {
   }
 
 }
-
-
 
 const form = reactive({
 
@@ -230,92 +218,157 @@ const form = reactive({
 
 });
 
-
-
 // Geoapify location suggestions are returned by our authenticated backend.
 // The frontend never handles the Geoapify API key or raw coordinates.
 interface WorkplaceSuggestion {
+
   name: string;
+
   address: string;
+
   result_type: string;
+
   location_token: string;
+
 }
 
 const workplaceSuggestions = ref<WorkplaceSuggestion[]>([]);
+
 const selectedWorkplace = ref<WorkplaceSuggestion | null>(null);
+
 const searchingWorkplace = ref(false);
+
 const workplaceSearchError = ref('');
+
 let workplaceTimer: ReturnType<typeof setTimeout> | undefined;
+
 let workplaceAbort: AbortController | null = null;
+
 let workplaceSearchId = 0;
 
 function clearWorkplaceSearch() {
+
   if (workplaceTimer) clearTimeout(workplaceTimer);
+
   workplaceTimer = undefined;
+
   workplaceAbort?.abort();
+
   workplaceAbort = null;
+
   workplaceSearchId++;
+
   searchingWorkplace.value = false;
+
   workplaceSuggestions.value = [];
+
 }
 
 function onWorkplaceInput() {
+
   clearWorkplaceSearch();
+
   selectedWorkplace.value = null;
+
   workplaceSearchError.value = '';
+
   const query = form.company_address.trim();
+
   if (query.length < 3) return;
 
   const requestId = workplaceSearchId;
+
   workplaceTimer = setTimeout(async () => {
+
     const token = sessionToken();
+
     if (!token) {
+
       workplaceSearchError.value = 'Please sign in again.';
+
       return;
+
     }
+
     const controller = new AbortController();
+
     workplaceAbort = controller;
+
     searchingWorkplace.value = true;
+
     try {
+
       const response = await fetch(
+
         `${API_BASE}/api/places/autocomplete?q=${encodeURIComponent(query)}`,
+
         {
+
           headers: { Authorization: `Bearer ${token}` },
+
           signal: controller.signal,
+
         },
+
       );
+
       const data = await response.json().catch(() => ({}));
+
       if (!response.ok || !data.success || !Array.isArray(data.suggestions)) {
+
         throw new Error(data.message || 'Unable to search locations.');
+
       }
+
       if (requestId === workplaceSearchId) {
+
         workplaceSuggestions.value = data.suggestions;
+
       }
+
     } catch (err) {
+
       if (controller.signal.aborted || requestId !== workplaceSearchId) return;
+
       workplaceSearchError.value = err instanceof Error ? err.message : 'Location search failed.';
+
     } finally {
+
       if (requestId === workplaceSearchId) searchingWorkplace.value = false;
+
     }
+
   }, 500);
+
 }
 
 function selectWorkplace(place: WorkplaceSuggestion) {
+
   clearWorkplaceSearch();
+
   selectedWorkplace.value = place;
+
   form.company_address = place.address;
+
   workplaceSearchError.value = '';
+
 }
 
 onUnmounted(clearWorkplaceSearch);
+
+// Search the saved workplace ADDRESS. This is not the exact assigned geofence pin.
+// For the exact workplace marker, the backend must expose geofence coordinates
+// to the student's authorized API response.
+function searchWorkplaceAddressOnGoogleMaps() {
+  if (!form.company_address.trim()) return;
+  showAddressMap.value = true;
+}
 
 function sessionToken(): string | null {
 
   return sessionStorage.getItem('inzone_token');
 
 }
-
-
 
 function showDate(value: string | null): string {
 
@@ -335,104 +388,152 @@ function showDate(value: string | null): string {
 
 }
 
-
-
 function fillForm(profile: OjtProfile) {
+
   autoEndDate.value = false;
+
   form.company_name = profile.company_name || '';
+
   form.company_address = profile.company_address || '';
+
   form.required_hours = Number(profile.required_hours) || 486;
+
   form.start_date = profile.start_date?.slice(0, 10) || '';
+
   form.end_date = profile.end_date?.slice(0, 10) || '';
 
   approvalStatus.value = profile.approval_status || 'PENDING';
+
   rejectionReason.value = profile.rejection_reason || null;
+
 }
 
-
-
 function resetNewForm() {
+
   clearWorkplaceSearch();
+
   selectedWorkplace.value = null;
+
   workplaceSearchError.value = '';
+
   hoursPerDay.value = 8;
+
   workSchedule.value = 'weekdays';
+
   autoEndDate.value = true;
+
   form.company_name = '';
+
   form.company_address = '';
+
   form.required_hours = 486;
+
   form.start_date = '';
+
   form.end_date = '';
+
   approvalStatus.value = null;
+
   rejectionReason.value = null;
 
 }
 
-
-
 function logout() {
+
   sessionStorage.removeItem('inzone_token');
+
   sessionStorage.removeItem('inzone_user');
+
   void router.replace('/');
+
 }
 
-
-
 async function loadProfile() {
+
   const token = sessionToken();
+
   if (!token) {
+
     logout();
+
     return;
+
   }
 
   loading.value = true;
+
   loadError.value = '';
+
   formError.value = '';
+
   message.value = '';
 
   try {
+
     const response = await fetch(`${API_BASE}/api/ojt/profile`, {
+
       headers: { Authorization: `Bearer ${token}` },
+
     });
+
     const data = await response.json().catch(() => ({}));
 
     if (response.status === 401) {
+
       logout();
+
       return;
+
     }
 
     // Your backend uses 404 specifically for students without an OJT profile.
     if (response.status === 404 && data.message === 'OJT profile not found.') {
+
       hasProfile.value = false;
+
       editing.value = true;
+
       resetNewForm();
+
       return;
+
     }
 
     if (!response.ok || !data.success || !data.profile) {
+
       throw new Error(data.message || `Could not load OJT profile (HTTP ${response.status}).`);
+
     }
 
     hasProfile.value = true;
+
     editing.value = false;
+
     fillForm(data.profile as OjtProfile);
+
   } catch (err) {
+
     loadError.value = err instanceof Error ? err.message : 'Unable to load OJT profile.';
+
   } finally {
+
     loading.value = false;
+
   }
+
 }
-
-
 
 function beginEdit() {
+
   if (approvalStatus.value === 'PENDING') return;
+
   formError.value = '';
+
   message.value = '';
+
   editing.value = true;
+
 }
-
-
 
 function cancelEdit() {
 
@@ -443,95 +544,167 @@ function cancelEdit() {
   editing.value = false;
 
   // If editing an existing profile, the form still contains the last loaded data
-
   // until save. Refresh it from the backend to undo unsaved edits.
-
   void loadProfile();
 
 }
 
-
-
 async function saveProfile() {
+
   formError.value = '';
+
   message.value = '';
+
   const companyName = form.company_name.trim();
+
   const hours = Number(form.required_hours);
 
   if (!companyName) {
+
     formError.value = 'Company name is required.';
+
     return;
+
   }
+
   if (!Number.isInteger(hours) || hours <= 0) {
+
     formError.value = 'Required hours must be a positive whole number.';
+
     return;
+
   }
+
   if (autoEndDate.value && (!Number.isInteger(Number(hoursPerDay.value)) ||
+
       Number(hoursPerDay.value) < 1 || Number(hoursPerDay.value) > 24)) {
+
     formError.value = 'Hours per day must be between 1 and 24.';
+
     return;
+
   }
+
   if (autoEndDate.value && Math.ceil(hours / Number(hoursPerDay.value)) > 10000) {
+
     formError.value = 'Too many workdays to estimate. Check the required hours.';
+
     return;
+
   }
+
   if (autoEndDate.value && form.start_date) updateEndDate();
+
   if (autoEndDate.value && !form.start_date) {
+
     formError.value = 'Please choose a start date to calculate the end date.';
+
     return;
+
   }
+
   if (form.start_date && form.end_date && form.end_date < form.start_date) {
+
     formError.value = 'End date cannot be earlier than start date.';
+
     return;
+
   }
+
   if (!hasProfile.value && !selectedWorkplace.value) {
+
     formError.value = 'Search and select your actual workplace address from the suggestions.';
+
     return;
+
   }
+
   if (!hasProfile.value && !form.company_address.trim()) {
+
     formError.value = 'Company address is required.';
+
     return;
+
   }
+
   const token = sessionToken();
+
   if (!token) {
+
     logout();
+
     return;
+
   }
 
   saving.value = true;
+
   try {
+
     const response = await fetch(`${API_BASE}/api/ojt/profile`, {
+
       method: hasProfile.value ? 'PUT' : 'POST',
+
       headers: {
+
         'Content-Type': 'application/json',
+
         Authorization: `Bearer ${token}`,
+
       },
+
       body: JSON.stringify({
+
         company_name: companyName,
+
         company_address: form.company_address.trim() || null,
+
         required_hours: hours,
+
         start_date: form.start_date || null,
+
         end_date: form.end_date || null,
+
         location_token: selectedWorkplace.value?.location_token ?? null,
+
       }),
+
     });
+
     const data = await response.json().catch(() => ({}));
+
     if (response.status === 401) {
+
       logout();
+
       return;
+
     }
+
     if (!response.ok || !data.success) {
+
       throw new Error(data.message || `Unable to save profile (HTTP ${response.status}).`);
+
     }
+
     hasProfile.value = true;
+
     editing.value = false;
+
     if (data.profile) fillForm(data.profile as OjtProfile);
+
     message.value = data.message || 'OJT profile saved successfully.';
+
   } catch (err) {
+
     formError.value = err instanceof Error ? err.message : 'Unable to save OJT profile.';
+
   } finally {
+
     saving.value = false;
+
   }
+
 }
 
 onMounted(() => {
@@ -564,8 +737,6 @@ onMounted(() => {
 
 </script>
 
-
-
 <template>
 
   <IonPage>
@@ -575,6 +746,7 @@ onMounted(() => {
       <div class="page-shell">
 
         <InZoneTopbar role="STUDENT" />
+
         <main class="content">
 
           <div class="heading">
@@ -591,87 +763,131 @@ onMounted(() => {
 
           </div>
 
-
-      <!-- =====================================
-          OJT PROFILE APPROVAL STATUS
-      ===================================== -->
-
       <section
+
         v-if="hasProfile && approvalStatus === 'PENDING'"
+
         class="approval-card pending-card"
+
       >
+
         <div class="approval-icon">
+
           <IonIcon :icon="timeOutline" />
+
         </div>
 
         <div class="approval-info">
+
           <h3>OJT Profile Pending Approval</h3>
 
           <p>
+
             Your OJT profile has been submitted successfully.
+
             Please wait for your administrator or supervisor
+
             to review and approve your company information.
+
           </p>
 
           <span class="approval-status pending">
+
             PENDING REVIEW
+
           </span>
+
         </div>
+
       </section>
 
       <section
+
         v-if="hasProfile && approvalStatus === 'APPROVED'"
+
         class="approval-card approved-card"
+
       >
+
         <div class="approval-icon">
+
           <IonIcon :icon="checkmarkCircleOutline" />
+
         </div>
 
         <div class="approval-info">
+
           <h3>OJT Profile Approved!</h3>
 
           <p>
+
             Your OJT workplace has been approved.
+
             You can now use GPS tracking and attendance
+
             within your assigned geofence.
+
           </p>
 
           <span class="approval-status approved">
+
             APPROVED
+
           </span>
+
         </div>
+
       </section>
 
       <section
+
         v-if="hasProfile && approvalStatus === 'REJECTED'"
+
         class="approval-card rejected-card"
+
       >
+
         <div class="approval-icon">
+
           <IonIcon :icon="alertCircleOutline" />
+
         </div>
 
         <div class="approval-info">
+
           <h3>OJT Profile Needs Revision</h3>
 
           <p>
+
             Your OJT profile was rejected.
+
             Please review the reason below, update your
+
             information, and submit it again.
+
           </p>
 
           <div class="rejection-reason">
+
             <strong>Reason for rejection:</strong>
+
             <p>
+
               {{ rejectionReason || 'No specific reason was provided.' }}
+
             </p>
+
           </div>
 
           <span class="approval-status rejected">
-            REJECTED
-          </span>
-        </div>
-      </section>
 
+            REJECTED
+
+          </span>
+
+        </div>
+
+      </section>
 
           <section class="hero">
 
@@ -689,15 +905,11 @@ onMounted(() => {
 
           </section>
 
-
-
           <div v-if="loading" class="state-card" role="status">
 
             <IonIcon :icon="refreshOutline" /> Loading your OJT profile...
 
           </div>
-
-
 
           <div v-else-if="loadError" class="state-card error-state" role="alert">
 
@@ -708,8 +920,6 @@ onMounted(() => {
             <button type="button" @click="loadProfile">Try again</button>
 
           </div>
-
-
 
           <div v-else class="profile-grid">
 
@@ -726,10 +936,15 @@ onMounted(() => {
                 </div>
 
                 <button
+
                   v-if="hasProfile && !editing && approvalStatus !== 'PENDING'"
+
                   type="button"
+
                   class="edit-button"
+
                   @click="beginEdit"
+
                 >
 
                   <IonIcon :icon="pencilOutline" /> Edit profile
@@ -738,13 +953,23 @@ onMounted(() => {
 
               </div>
 
-
-
               <div v-if="!editing" class="details">
 
                 <div class="detail"><span><IonIcon :icon="businessOutline" /> Company name</span><strong>{{ form.company_name }}</strong></div>
 
                 <div class="detail"><span><IonIcon :icon="locationOutline" /> Company address</span><strong>{{ form.company_address || 'Not set' }}</strong></div>
+
+                  <div v-if="form.company_address" class="profile-map-action">
+
+                    <button type="button" class="workplace-map-button" @click="searchWorkplaceAddressOnGoogleMaps">
+
+                      <IonIcon :icon="locationOutline" /> Preview Workplace Map
+
+                    </button>
+
+                    <small>Searches the saved address. This is not necessarily the exact approved geofence pin.</small>
+
+                  </div>
 
                 <div class="detail"><span><IonIcon :icon="timeOutline" /> Required OJT hours</span><strong>{{ form.required_hours }} hours</strong></div>
 
@@ -753,8 +978,6 @@ onMounted(() => {
                 <div class="detail"><span><IonIcon :icon="calendarOutline" /> End date</span><strong>{{ showDate(form.end_date || null) }}</strong></div>
 
               </div>
-
-
 
               <form v-else @submit.prevent="saveProfile">
 
@@ -767,43 +990,81 @@ onMounted(() => {
                 </div>
 
                 <div class="field workplace-field">
+
                   <label for="company-address">Company address <span>*</span></label>
+
                   <div class="input-wrap">
+
                     <IonIcon :icon="locationOutline" />
+
                     <input
+
                       id="company-address"
+
                       v-model="form.company_address"
+
                       type="text"
+
                       placeholder="Search your exact company or campus address"
+
                       autocomplete="off"
+
                       :required="!hasProfile"
+
                       @input="onWorkplaceInput"
+
                     />
+
                   </div>
+
                   <small class="hint">Type at least 3 characters, then choose the correct workplace from the suggestions.</small>
+
                   <div v-if="searchingWorkplace" class="workplace-message" role="status">Searching workplaces...</div>
+
                   <div v-if="workplaceSuggestions.length" class="workplace-results" aria-label="Suggested workplace addresses">
+
                     <button
+
                       v-for="place in workplaceSuggestions"
+
                       :key="place.location_token"
+
                       type="button"
+
                       class="workplace-option"
+
                       @click="selectWorkplace(place)"
+
                     >
+
                       <IonIcon :icon="locationOutline" />
+
                       <span><strong>{{ place.name }}</strong><small>{{ place.address }}</small></span>
+
                     </button>
+
                   </div>
+
                   <div v-if="selectedWorkplace" class="workplace-selected" role="status">
+
                     <IonIcon :icon="checkmarkCircleOutline" />
+
                     <span>Workplace selected. The backend will create its geofence when you save.</span>
+
                   </div>
+
                   <div v-if="workplaceSearchError" class="workplace-error" role="alert">{{ workplaceSearchError }}</div>
+
                   <small v-if="hasProfile" class="hint">For an already assigned geofence, changing the company or address may require administrator approval.</small>
+
                   <small class="geoapify-credit">
+
                     Powered by <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>
+
                     · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>
+
                   </small>
+
                 </div>
 
                 <div class="field">
@@ -992,13 +1253,9 @@ onMounted(() => {
 
               </form>
 
-
-
               <div v-if="message" class="feedback success" role="status"><IonIcon :icon="checkmarkCircleOutline" /> {{ message }}</div>
 
             </section>
-
-
 
             <aside class="side">
 
@@ -1037,12 +1294,18 @@ onMounted(() => {
     </IonContent>
 
     <StudentBottomNav />
+    <InZoneMapViewer
+      :is-open="showAddressMap"
+      title="Workplace Address Preview"
+      :query="[form.company_name.trim(), form.company_address.trim()].filter(Boolean).join(', ')"
+      :address="form.company_address"
+      :is-exact-pin="false"
+      @close="showAddressMap = false"
+    />
 
   </IonPage>
 
 </template>
-
-
 
 <style scoped>
 
@@ -1065,21 +1328,33 @@ onMounted(() => {
 .logout { display: flex; align-items: center; gap: 7px; border-radius: 10px; padding: 11px 15px; background: #eaf5ef; color: #0c7656; font-weight: 750; cursor: pointer; }
 
 .content { max-width: 1220px; margin: 0 auto; padding: 32px clamp(18px, 4vw, 48px) 60px; }.content {
+
   max-width: 1220px;
+
   margin: 0 auto;
+
   padding: 16px clamp(18px, 4vw, 48px)
+
     calc(140px + env(safe-area-inset-bottom, 0px));
+
 }
+
 .back { display: flex; align-items: center; gap: 7px; padding: 0; color: #0c8664; background: transparent; cursor: pointer; font-size: 13px; font-weight: 750; }
 
 .back:hover { text-decoration: underline; }
 
 .heading {
+
   display: flex;
+
   justify-content: space-between;
+
   align-items: center;
+
   gap: 12px;
+
   margin: 0 0 24px;
+
 }
 
 .eyebrow { color: #0b8a63; font-weight: 850; font-size: 11px; letter-spacing: 1.4px; display: flex; gap: 7px; align-items: center; }
@@ -1232,187 +1507,308 @@ onMounted(() => {
 
 @media(max-width: 600px) { .content { padding: 22px 16px 45px; } .brand small { display: none; } .heading { flex-direction: column; align-items: flex-start; } .hero { padding: 26px; min-height: 177px; } .hero-icon { right: -10px; } .card-title-row { align-items: flex-start; } .date-grid, .schedule-grid { grid-template-columns: 1fr; gap: 0; } .detail { grid-template-columns: 1fr; gap: 6px; } .main-card { padding: 20px; } }
 
-
 /* Address autocomplete */
+
 .workplace-field { position: relative; }
+
 .workplace-message { padding: 10px 0; color: #708b7c; font-size: 12px; }
+
 .workplace-results { margin-top: 8px; padding: 5px; max-height: 270px; overflow-y: auto; border: 1px solid #d8e9de; border-radius: 13px; background: #fff; box-shadow: 0 12px 28px #0c5d3e17; }
+
 .workplace-option { width: 100%; display: flex; gap: 12px; align-items: flex-start; padding: 13px 12px; border: 0; border-radius: 9px; background: transparent; cursor: pointer; text-align: left; }
+
 .workplace-option:hover, .workplace-option:focus-visible { background: #eff8f2; }
+
 .workplace-option ion-icon { flex-shrink: 0; margin-top: 2px; font-size: 20px; color: #0b775b; }
+
 .workplace-option span { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+
 .workplace-option strong { color: #214936; font-size: 12px; }
+
 .workplace-option small { color: #809488; line-height: 1.5; font-size: 11px; }
+
 .workplace-selected { margin-top: 12px; display: flex; gap: 9px; align-items: flex-start; background: #e4f7eb; color: #0b775b; border: 1px solid #c8e8d4; padding: 12px; border-radius: 11px; font-weight: 700; font-size: 12px; line-height: 1.6; }
+
 .workplace-selected ion-icon { font-size: 20px; flex-shrink: 0; }
+
 .workplace-error { margin-top: 10px; color: #b74242; font-size: 12px; }
+
 .geoapify-credit { display: block; margin-top: 10px; color: #829687; font-size: 10px; }
+
 .geoapify-credit a { color: #0b775b; text-decoration: underline; }
 
-
-/* ======================================
-   OJT PROFILE APPROVAL STATUS
-====================================== */
+/* OJT PROFILE APPROVAL STATUS */
 
 .approval-card {
+
   display: flex;
+
   align-items: flex-start;
+
   gap: 16px;
+
   padding: 22px;
+
   border-radius: 16px;
+
   margin-bottom: 22px;
+
   border: 1px solid;
+
 }
 
 .approval-icon {
+
   width: 48px;
+
   height: 48px;
+
   border-radius: 13px;
+
   display: grid;
+
   place-items: center;
+
   flex-shrink: 0;
+
 }
 
 .approval-icon ion-icon {
+
   font-size: 25px;
+
 }
 
 .approval-info {
+
   flex: 1;
+
   min-width: 0;
+
 }
 
 .approval-info h3 {
+
   font-size: 16px;
+
   font-weight: 800;
+
   margin: 0 0 8px;
+
 }
 
 .approval-info > p {
+
   font-size: 13px;
+
   line-height: 1.7;
+
   margin: 0 0 13px;
+
 }
 
 .approval-status {
+
   display: inline-flex;
+
   padding: 7px 12px;
+
   border-radius: 99px;
+
   font-size: 10px;
+
   font-weight: 850;
+
   letter-spacing: 0.7px;
+
 }
 
 /* PENDING */
+
 .pending-card {
+
   background: #fff9eb;
+
   border-color: #f0dfac;
+
 }
 
 .pending-card .approval-icon {
+
   background: #ffedc2;
+
   color: #a96c09;
+
 }
 
 .pending-card h3 {
+
   color: #805616;
+
 }
 
 .pending-card p {
+
   color: #927c55;
+
 }
 
 .approval-status.pending {
+
   background: #f7e5b8;
+
   color: #90600c;
+
 }
 
 /* APPROVED */
+
 .approved-card {
+
   background: #eaf8f0;
+
   border-color: #bfe6cf;
+
 }
 
 .approved-card .approval-icon {
+
   background: #cff0db;
+
   color: #087957;
+
 }
 
 .approved-card h3 {
+
   color: #0c694c;
+
 }
 
 .approved-card p {
+
   color: #57816c;
+
 }
 
 .approval-status.approved {
+
   background: #c5ebd4;
+
   color: #08734d;
+
 }
 
 /* REJECTED */
+
 .rejected-card {
+
   background: #fff2f0;
+
   border-color: #f4cbc5;
+
 }
 
 .rejected-card .approval-icon {
+
   background: #ffdbd5;
+
   color: #b74337;
+
 }
 
 .rejected-card h3 {
+
   color: #a43a31;
+
 }
 
 .rejected-card p {
+
   color: #99675f;
+
 }
 
 .approval-status.rejected {
+
   background: #ffdcd6;
+
   color: #a33d33;
+
 }
 
 .rejection-reason {
+
   padding: 13px;
+
   margin-bottom: 13px;
+
   background: #ffffff;
+
   border: 1px solid #f0cfca;
+
   border-radius: 10px;
+
 }
 
 .rejection-reason strong {
+
   color: #a43a31;
+
   font-size: 12px;
+
 }
 
 .rejection-reason p {
+
   margin: 6px 0 0;
+
   font-size: 12px;
+
   line-height: 1.6;
+
 }
 
 /* MOBILE */
+
 @media (max-width: 600px) {
+
   .approval-card {
+
     padding: 17px;
+
     gap: 12px;
+
   }
 
   .approval-icon {
+
     width: 41px;
+
     height: 41px;
+
   }
 
   .approval-info h3 {
+
     font-size: 14px;
+
   }
 
   .approval-info > p {
+
     font-size: 12px;
+
   }
+
 }
+
+.profile-map-action { margin-top: 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 9px; }
+
+.workplace-map-button { display: inline-flex; gap: 9px; align-items: center; border: none; padding: 12px 16px; border-radius: 11px; background: #e6f5ec; color: #0a7857; font-size: 12px; font-weight: 800; cursor: pointer; }
+
+.workplace-map-button:hover { background: #d9f0e2; }
+
+.profile-map-action small { font-size: 11px; color: #7a9083; line-height: 1.5; }
 
 </style>
