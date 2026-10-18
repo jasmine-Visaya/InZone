@@ -7,6 +7,8 @@ const authenticateToken = require(
 
 const {
   getStudents,
+  updateStudentAccountStatus,
+  updateStudentDetails
 } = require("../controllers/adminStudentController");
 
 const router = express.Router();
@@ -32,5 +34,8 @@ router.use((req, res, next) => {
 
 // GET /api/admin/students
 router.get("/", getStudents);
+router.patch("/:studentId/status", updateStudentAccountStatus);
+// PATCH /api/admin/students/:studentId
+router.patch("/:studentId", updateStudentDetails);
 
 module.exports = router;
