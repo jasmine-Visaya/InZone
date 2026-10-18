@@ -1,436 +1,314 @@
 <script setup lang="ts">
-// Unified InZone login: Student, Supervisor and Admin.
-
-import { ref } from 'vue';
-
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-
 import { IonPage, IonContent, IonButton, IonIcon } from '@ionic/vue';
-
 import {
-
-  locationOutline,
-
-  navigateOutline,
-
-  shieldCheckmarkOutline,
-
-  schoolOutline,
-
-  personOutline,
-
-  mailOutline,
-
-  lockClosedOutline,
-
-  eyeOutline,
-
-  eyeOffOutline,
-
-  arrowForwardOutline,
-
-  checkmarkCircleOutline,
-
-  alertCircleOutline,
-
+  locationOutline, navigateOutline, shieldCheckmarkOutline, schoolOutline,
+  personOutline, mailOutline, lockClosedOutline, eyeOutline, eyeOffOutline,
+  arrowForwardOutline, checkmarkCircleOutline, alertCircleOutline,
+  keyOutline, arrowBackOutline, refreshOutline,
 } from 'ionicons/icons';
 
+type AuthView = 'login' | 'signup' | 'verify' | 'forgot' | 'reset';
 const router = useRouter();
-
-const isSignup = ref(false);
-
+const view = ref<AuthView>('login');
+const isSignup = computed(() => view.value === 'signup');
 const firstName = ref('');
-
 const lastName = ref('');
-
 const email = ref('');
-
 const password = ref('');
-
 const confirmPassword = ref('');
-
+const otp = ref('');
+const newPassword = ref('');
+const confirmNewPassword = ref('');
 const showPassword = ref(false);
-
 const loading = ref(false);
-
+const resending = ref(false);
 const error = ref('');
-
 const success = ref('');
-
-// You can later configure this in frontend/.env as VITE_API_URL=...
-
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-function setMode(signup: boolean) {
-
-  if (isSignup.value === signup) return;
-
-  isSignup.value = signup;
-
+function setView(next: AuthView) {
+  view.value = next;
   error.value = '';
-
   success.value = '';
-
   password.value = '';
-
   confirmPassword.value = '';
-
+  otp.value = '';
+  newPassword.value = '';
+  confirmNewPassword.value = '';
   showPassword.value = false;
+}
 
+async function postAuth(path: string, payload: Record<string, unknown>) {
+  const response = await fetch(`${API_BASE}/api/auth/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.success) {
+    const err = new Error(data.message || 'Something went wrong. Please try again.') as Error & { code?: string };
+    err.code = data.code;
+    throw err;
+  }
+  return data;
 }
 
 async function handleSubmit() {
-
   error.value = '';
-
   success.value = '';
+  if (loading.value) return;
 
-  if (isSignup.value && password.value !== confirmPassword.value) {
-
+  if (view.value === 'signup' && password.value !== confirmPassword.value) {
     error.value = 'Passwords do not match.';
-
     return;
-
+  }
+  if (view.value === 'reset' && newPassword.value !== confirmNewPassword.value) {
+    error.value = 'New passwords do not match.';
+    return;
+  }
+  if (view.value === 'signup' && password.value.length < 8) {
+    error.value = 'Password must have at least 8 characters.';
+    return;
+  }
+  if (view.value === 'reset' && newPassword.value.length < 8) {
+    error.value = 'New password must have at least 8 characters.';
+    return;
   }
 
   loading.value = true;
-
-  const endpoint = isSignup.value ? 'register' : 'login';
-
-  const payload = isSignup.value
-
-    ? {
-
-        first_name: firstName.value.trim(),
-
-        last_name: lastName.value.trim(),
-
-        email: email.value.trim(),
-
-        password: password.value,
-
-      }
-
-    : {
-
-        email: email.value.trim(),
-
-        password: password.value,
-
-      };
-
   try {
+    const accountEmail = email.value.trim().toLowerCase();
+    email.value = accountEmail;
 
-    const response = await fetch(`${API_BASE}/api/auth/${endpoint}`, {
-
-      method: 'POST',
-
-      headers: { 'Content-Type': 'application/json' },
-
-      body: JSON.stringify(payload),
-
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
-
-      throw new Error(data.message || 'Something went wrong. Please try again.');
-
+    if (view.value === 'signup') {
+      const data = await postAuth('register', {
+        first_name: firstName.value.trim(), last_name: lastName.value.trim(),
+        email: accountEmail, password: password.value,
+      });
+      setView('verify');
+      success.value = data.message;
+      return;
     }
 
-    if (isSignup.value) {
-
-      isSignup.value = false;
-
-      password.value = '';
-
-      confirmPassword.value = '';
-
-      success.value = 'Registration sent! Please wait for account approval before signing in.';
-
-    } else {
-
-      // Single endpoint; the backend decides the account role.
-
-      const role = String(data.user?.role || '').toUpperCase();
-
-      const destinations: Record<string, string> = {
-
-        STUDENT: '/student/dashboard',
-
-        SUPERVISOR: '/supervisor/dashboard',
-
-        ADMIN: '/admin/dashboard',
-
-      };
-
-      const destination = destinations[role];
-
-      if (!destination) {
-
-        throw new Error('Your account role is not supported by this portal.');
-
-      }
-
-      if (!data.token) {
-
-        throw new Error('No login token was returned by the server.');
-
-      }
-
-      // Starter session for this web prototype; backend routes must verify JWT.
-
-      sessionStorage.setItem('inzone_token', data.token);
-
-      sessionStorage.setItem('inzone_user', JSON.stringify(data.user));
-
-      await router.replace(destination);
-
+    if (view.value === 'verify') {
+      const data = await postAuth('verify-register-otp', { email: accountEmail, otp: otp.value });
+      setView('login');
+      success.value = data.message;
+      return;
     }
 
+    if (view.value === 'forgot') {
+      const data = await postAuth('forgot-password', { email: accountEmail });
+      setView('reset');
+      success.value = data.message;
+      return;
+    }
+
+    if (view.value === 'reset') {
+      const data = await postAuth('reset-password', {
+        email: accountEmail, otp: otp.value, new_password: newPassword.value,
+      });
+      setView('login');
+      success.value = data.message;
+      return;
+    }
+
+    const data = await postAuth('login', { email: accountEmail, password: password.value });
+    const role = String(data.user?.role || '').toUpperCase();
+    const destinations: Record<string, string> = {
+      STUDENT: '/student/dashboard',
+      SUPERVISOR: '/supervisor/dashboard',
+      ADMIN: '/admin/dashboard',
+    };
+    const destination = destinations[role];
+    if (!destination) throw new Error('Your account role is not supported by this portal.');
+    if (!data.token) throw new Error('No login token was returned by the server.');
+    sessionStorage.setItem('inzone_token', data.token);
+    sessionStorage.setItem('inzone_user', JSON.stringify(data.user));
+    await router.replace(destination);
   } catch (err) {
-
-    error.value = err instanceof Error ? err.message : 'Unable to connect to the backend.';
-
+    const authError = err as Error & { code?: string };
+    if (view.value === 'login' && authError.code === 'EMAIL_NOT_VERIFIED') {
+      setView('verify');
+      error.value = 'Your email is not verified. Enter your registration code or select Resend code.';
+    } else {
+      error.value = err instanceof Error ? err.message : 'Unable to connect to the backend.';
+    }
   } finally {
-
     loading.value = false;
-
   }
-
 }
 
+async function resendCode() {
+  if (resending.value) return;
+  error.value = '';
+  success.value = '';
+  resending.value = true;
+  try {
+    const path = view.value === 'verify' ? 'resend-register-otp' : 'forgot-password';
+    const data = await postAuth(path, { email: email.value.trim().toLowerCase() });
+    success.value = data.message;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Could not resend code.';
+  } finally {
+    resending.value = false;
+  }
+}
+
+const headings: Record<AuthView, string> = {
+  login: 'Welcome back!', signup: 'Join InZone',
+  verify: 'Verify your email', forgot: 'Forgot password?', reset: 'Set a new password',
+};
+const descriptions: Record<AuthView, string> = {
+  login: 'Students, supervisors, and administrators sign in with their approved account.',
+  signup: 'Student registration only · supervisor and admin accounts are issued by authorized staff.',
+  verify: 'Enter the 6-digit code sent to your email. The code expires in 10 minutes.',
+  forgot: 'Enter your registered email address to receive a password reset code.',
+  reset: 'Enter the 6-digit code from your email and choose a new password.',
+};
+const submitLabels: Record<AuthView, string> = {
+  login: 'Sign in to InZone', signup: 'Create student account',
+  verify: 'Verify email address', forgot: 'Send reset code', reset: 'Reset password',
+};
 </script>
 
 <template>
-
   <IonPage>
-
     <IonContent :fullscreen="true" class="auth-content">
-
       <main class="auth-page">
-
         <div class="auth-shell">
-
           <aside class="brand-panel">
-
             <div class="brand-top">
-
               <div class="brand-name">
-
                 <div class="brand-mark"><IonIcon :icon="locationOutline" /></div>
-
                 <span>InZone<span class="brand-dot">.</span></span>
-
               </div>
-
               <span class="portal-chip">STUDENT · SUPERVISOR · ADMIN</span>
-
             </div>
-
             <div class="hero-copy">
-
               <p class="eyebrow"><span class="status-dot"></span> SMART OJT MONITORING</p>
-
               <h1>Your OJT journey,<br /><em>all in one zone.</em></h1>
-
-              <p class="hero-description">
-
-                One secure space for students, supervisors, and administrators
-
-                to manage the OJT journey.
-
-              </p>
-
+              <p class="hero-description">One secure space for students, supervisors, and administrators to manage the OJT journey.</p>
             </div>
-
             <div class="geo-visual" aria-hidden="true">
-
               <div class="geo-grid"></div>
-
               <div class="geo-ring ring-outer"></div>
-
               <div class="geo-ring ring-middle"></div>
-
               <div class="geo-ring ring-inner"></div>
-
               <span class="geo-dot dot-one"></span>
-
               <span class="geo-dot dot-two"></span>
-
               <div class="geo-center"><IonIcon :icon="navigateOutline" /></div>
-
               <div class="verified-label">
-
                 <IonIcon :icon="checkmarkCircleOutline" />
-
                 <div><strong>Geo-fencing ready</strong><small>Location tools after login</small></div>
-
               </div>
-
             </div>
-
             <p class="brand-footer">One login. The right workspace for every role.</p>
-
           </aside>
 
           <section class="form-panel" aria-label="InZone account authentication">
-
             <div class="form-topline"><IonIcon :icon="schoolOutline" /> ONE LOGIN · THREE WORKSPACES</div>
+            <h2>{{ headings[view] }}</h2>
+            <p class="form-intro">{{ descriptions[view] }}</p>
 
-            <h2>{{ isSignup ? 'Join InZone' : 'Welcome back!' }}</h2>
-
-            <p class="form-intro">
-
-              {{ isSignup
-
-                ? 'Student registration only · supervisor and admin accounts are issued by authorized staff.'
-
-                : 'Students, supervisors, and administrators sign in with their approved account.' }}
-
-            </p>
-
-            <div class="mode-switch" role="group" aria-label="Choose login or registration">
-
-              <button type="button" :class="{ active: !isSignup }" :aria-pressed="!isSignup" @click="setMode(false)">Sign in</button>
-
-              <button type="button" :class="{ active: isSignup }" :aria-pressed="isSignup" @click="setMode(true)">Create account</button>
-
+            <div v-if="view === 'login' || view === 'signup'" class="mode-switch" role="group" aria-label="Choose login or registration">
+              <button type="button" :class="{ active: !isSignup }" :aria-pressed="!isSignup" @click="setView('login')">Sign in</button>
+              <button type="button" :class="{ active: isSignup }" :aria-pressed="isSignup" @click="setView('signup')">Create account</button>
             </div>
 
             <form class="auth-form" @submit.prevent="handleSubmit">
-
-              <div v-if="isSignup" class="name-grid">
-
+              <div v-if="view === 'signup'" class="name-grid">
                 <div class="field">
-
                   <label for="firstName">First name</label>
-
-                  <div class="input-wrap">
-
-                    <IonIcon :icon="personOutline" />
-
-                    <input id="firstName" v-model="firstName" placeholder="First name" autocomplete="given-name" required />
-
-                  </div>
-
+                  <div class="input-wrap"><IonIcon :icon="personOutline" /><input id="firstName" v-model="firstName" placeholder="First name" autocomplete="given-name" maxlength="100" required /></div>
                 </div>
-
                 <div class="field">
-
                   <label for="lastName">Last name</label>
-
-                  <div class="input-wrap">
-
-                    <IonIcon :icon="personOutline" />
-
-                    <input id="lastName" v-model="lastName" placeholder="Last name" autocomplete="family-name" required />
-
-                  </div>
-
+                  <div class="input-wrap"><IonIcon :icon="personOutline" /><input id="lastName" v-model="lastName" placeholder="Last name" autocomplete="family-name" maxlength="100" required /></div>
                 </div>
-
               </div>
 
               <div class="field">
-
                 <label for="email">Email address</label>
-
                 <div class="input-wrap">
-
                   <IonIcon :icon="mailOutline" />
-
-                  <input id="email" v-model="email" type="email" placeholder="you@example.com" autocomplete="email" required />
-
+                  <input id="email" v-model="email" type="email" placeholder="you@example.com" autocomplete="email" :readonly="view === 'verify' || view === 'reset'" required />
                 </div>
-
               </div>
 
-              <div class="field">
-
+              <div v-if="view === 'login' || view === 'signup'" class="field">
                 <label for="password">Password</label>
-
                 <div class="input-wrap">
-
                   <IonIcon :icon="lockClosedOutline" />
-
-                  <input id="password" v-model="password" :type="showPassword ? 'text' : 'password'" :autocomplete="isSignup ? 'new-password' : 'current-password'" placeholder="Enter your password" required />
-
-                  <button class="visibility-btn" type="button" :aria-label="showPassword ? 'Hide password' : 'Show password'" @click="showPassword = !showPassword">
-
-                    <IonIcon :icon="showPassword ? eyeOffOutline : eyeOutline" />
-
-                  </button>
-
+                  <input id="password" v-model="password" :type="showPassword ? 'text' : 'password'" :autocomplete="isSignup ? 'new-password' : 'current-password'" placeholder="Enter your password" :minlength="isSignup ? 8 : undefined" required />
+                  <button class="visibility-btn" type="button" :aria-label="showPassword ? 'Hide password' : 'Show password'" @click="showPassword = !showPassword"><IonIcon :icon="showPassword ? eyeOffOutline : eyeOutline" /></button>
                 </div>
-
               </div>
 
-              <div v-if="isSignup" class="field">
-
+              <div v-if="view === 'signup'" class="field">
                 <label for="confirmPassword">Confirm password</label>
+                <div class="input-wrap"><IonIcon :icon="lockClosedOutline" /><input id="confirmPassword" v-model="confirmPassword" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" placeholder="Re-enter your password" minlength="8" required /></div>
+              </div>
 
-                <div class="input-wrap">
-
-                  <IonIcon :icon="lockClosedOutline" />
-
-                  <input id="confirmPassword" v-model="confirmPassword" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" placeholder="Re-enter your password" required />
-
+              <div v-if="view === 'verify' || view === 'reset'" class="field">
+                <label for="otp">6-digit email OTP</label>
+                <div class="input-wrap otp-input-wrap">
+                  <IonIcon :icon="keyOutline" />
+                  <input id="otp" v-model="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" class="otp-input" @input="otp = otp.replace(/\D/g, '').slice(0, 6)" required />
                 </div>
-
+                <div class="otp-resend-row">
+                  <span>Didn't receive the code?</span>
+                  <button type="button" :disabled="resending || loading" @click="resendCode"><IonIcon :icon="refreshOutline" /> {{ resending ? 'Sending...' : 'Resend code' }}</button>
+                </div>
               </div>
 
-              <div v-if="error" class="feedback feedback-error" role="alert">
+              <template v-if="view === 'reset'">
+                <div class="field">
+                  <label for="newPassword">New password</label>
+                  <div class="input-wrap">
+                    <IonIcon :icon="lockClosedOutline" />
+                    <input id="newPassword" v-model="newPassword" :type="showPassword ? 'text' : 'password'" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required />
+                    <button class="visibility-btn" type="button" :aria-label="showPassword ? 'Hide password' : 'Show password'" @click="showPassword = !showPassword"><IonIcon :icon="showPassword ? eyeOffOutline : eyeOutline" /></button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="confirmNewPassword">Confirm new password</label>
+                  <div class="input-wrap"><IonIcon :icon="lockClosedOutline" /><input id="confirmNewPassword" v-model="confirmNewPassword" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" placeholder="Re-enter new password" minlength="8" required /></div>
+                </div>
+              </template>
 
-                <IonIcon :icon="alertCircleOutline" /><span>{{ error }}</span>
+              <div v-if="view === 'login'" class="forgot-row"><button type="button" @click="setView('forgot')">Forgot password?</button></div>
 
-              </div>
+              <div v-if="error" class="feedback feedback-error" role="alert"><IonIcon :icon="alertCircleOutline" /><span>{{ error }}</span></div>
+              <div v-if="success" class="feedback feedback-success" role="status"><IonIcon :icon="checkmarkCircleOutline" /><span>{{ success }}</span></div>
 
-              <div v-if="success" class="feedback feedback-success" role="status">
-
-                <IonIcon :icon="checkmarkCircleOutline" /><span>{{ success }}</span>
-
-              </div>
-
-              <IonButton expand="block" type="submit" class="submit-btn" :disabled="loading">
-
-                {{ loading ? 'Please wait...' : isSignup ? 'Create student account' : 'Sign in to InZone' }}
-
+              <IonButton expand="block" type="submit" class="submit-btn" :disabled="loading || resending">
+                {{ loading ? 'Please wait...' : submitLabels[view] }}
                 <IonIcon v-if="!loading" slot="end" :icon="arrowForwardOutline" />
-
               </IonButton>
-
             </form>
 
-            <div v-if="isSignup" class="approval-note">
-
+            <div v-if="view === 'signup' || view === 'verify'" class="approval-note">
               <IonIcon :icon="shieldCheckmarkOutline" />
-
-              <span>Student registration requires approval. Supervisor and administrator accounts must be provisioned by authorized staff.</span>
-
+              <span>Student registration requires email verification <strong>and</strong> staff approval. Supervisor and administrator accounts are issued by authorized staff.</span>
             </div>
 
-            <p class="form-switch-note">
-
+            <p v-if="view === 'login' || view === 'signup'" class="form-switch-note">
               {{ isSignup ? 'Already registered?' : 'New to InZone?' }}
-
-              <button type="button" @click="setMode(!isSignup)">{{ isSignup ? 'Sign in' : 'Create an account' }}</button>
-
+              <button type="button" @click="setView(isSignup ? 'login' : 'signup')">{{ isSignup ? 'Sign in' : 'Create an account' }}</button>
+            </p>
+            <p v-else class="form-switch-note">
+              <button type="button" class="back-link" @click="setView('login')"><IonIcon :icon="arrowBackOutline" /> Back to sign in</button>
             </p>
 
             <p class="security-footer"><IonIcon :icon="shieldCheckmarkOutline" /> Secure role-based access · InZone © 2026</p>
-
           </section>
-
         </div>
-
       </main>
-
     </IonContent>
-
   </IonPage>
-
 </template>
 
 <style scoped>
@@ -688,5 +566,17 @@ async function handleSubmit() {
   .name-grid { grid-template-columns: 1fr; gap: 0; }
 
 }
+
+
+/* OTP and password recovery extensions; all original InZone colors/styles are unchanged. */
+.forgot-row { display: flex; justify-content: flex-end; margin: -3px 0 12px; }
+.forgot-row button, .otp-resend-row button { border: 0; background: transparent; color: #087957; font-size: 12px; font-weight: 800; cursor: pointer; padding: 5px 0; }
+.forgot-row button:hover, .otp-resend-row button:hover, .back-link:hover { text-decoration: underline; }
+.otp-input { font-weight: 800 !important; font-size: 21px !important; letter-spacing: 8px; font-variant-numeric: tabular-nums; }
+.otp-resend-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: #789083; font-size: 11px; padding-top: 8px; }
+.otp-resend-row button { display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+.otp-resend-row button:disabled { cursor: not-allowed; opacity: .5; }
+.back-link { display: inline-flex; align-items: center; gap: 6px; }
+.input-wrap input[readonly] { color: #647c70; cursor: default; }
 
 </style>
