@@ -11,6 +11,7 @@ const geofenceRoutes = require("../routes/geofenceRoutes");
 const attendanceRoutes = require("../routes/attendanceRoutes");
 const weeklyReportRoutes = require("../routes/weeklyReportRoutes");
 const supervisorReportRoutes = require("../routes/supervisorReportRoutes");
+const supervisorRoutes = require("../routes/supervisorRoutes");
 const ojtApprovalRoutes = require("../routes/ojtApprovalRoutes");
 const adminStudentRoutes = require("../routes/adminStudentRoutes");
 const adminReportRoutes = require("../routes/adminReportRoutes");
@@ -57,6 +58,13 @@ app.use("/api/geofences", geofenceRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/weekly-reports", weeklyReportRoutes);
 app.use("/api/supervisor/reports", supervisorReportRoutes);
+
+// Dashboard, assigned students, attendance and profile
+app.use(
+  "/api/supervisor",
+  supervisorRoutes
+);
+
 app.use("/api/ojt/review", ojtApprovalRoutes);
 app.use("/api/admin/students", adminStudentRoutes);
 app.use("/api/admin/reports", adminReportRoutes);

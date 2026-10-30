@@ -20,6 +20,8 @@ import InZoneTopbar from '@/components/InZoneTopbar.vue';
 
 import AdminBottomNav from './AdminBottomNav.vue';
 import InZoneMapViewer from '@/components/InZoneMapViewer.vue';
+import AdminSupervisorAssign, { type AssignedSupervisor } from './AdminSupervisorAssign.vue';
+ 
 
 import {
 
@@ -108,6 +110,11 @@ interface Student {
   longitude: number | string | null;
 
   radius_meters: number | string | null;
+
+  supervisor_id?: string | null;
+  supervisor_first_name?: string | null;
+  supervisor_last_name?: string | null;
+  supervisor_email?: string | null;
 
 }
 
@@ -483,6 +490,17 @@ async function loadStudents() {
 
   }
 
+}
+
+// Called after the admin saves a supervisor in the details popup.
+function onSupervisorSaved(value: AssignedSupervisor) {
+  const current = selectedStudent.value;
+  if (!current) return;
+  const updated = { ...current, ...value };
+  selectedStudent.value = updated;
+  students.value = students.value.map((student) =>
+    String(student.id) === String(updated.id) ? updated : student
+  );
 }
 
 function openDetails(student: Student) {
@@ -1477,6 +1495,19 @@ onIonViewWillEnter(() => {
                 </div>
 
               </div>
+
+               <h3 class="detail-section-title">
+ 
+                <IonIcon :icon="personOutline" /> Company Supervisor
+ 
+              </h3>
+ 
+              <AdminSupervisorAssign
+                :profile-id="selectedStudent.ojt_profile_id"
+                :current-supervisor-id="selectedStudent.supervisor_id ?? null"
+                :company-name="selectedStudent.company_name"
+                @saved="onSupervisorSaved"
+              />
 
               <h3 class="detail-section-title">
 

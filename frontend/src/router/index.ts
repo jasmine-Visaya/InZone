@@ -46,9 +46,39 @@ const routes: RouteRecordRaw[] = [
   // Supervisor panel
   {
     path: "/supervisor/dashboard",
-    name: "SupervisorDashboard",
+        name: "SupervisorDashboard",
     component: () => import("../views/supervisor/SupervisorDashboard.vue"),
     meta: { requiresAuth: true, role: "SUPERVISOR" },
+  },
+  {
+    path: "/supervisor/students",
+    name: "SupervisorStudents",
+    component: () => import("../views/supervisor/SupervisorStudents.vue"),
+    meta: { requiresAuth: true, role: "SUPERVISOR" },
+  },
+  {
+    path: "/supervisor/students/:studentId",
+    name: "SupervisorStudentDetail",
+    component: () => import("../views/supervisor/SupervisorStudentDetail.vue"),
+    meta: { requiresAuth: true, role: "SUPERVISOR" },
+  },
+  {
+    path: "/supervisor/reports",
+    name: "SupervisorReports",
+    component: () => import("../views/supervisor/SupervisorReports.vue"),
+    meta: { requiresAuth: true, role: "SUPERVISOR" },
+  },
+  {
+    path: "/supervisor/attendance",
+    name: "SupervisorAttendance",
+    component: () => import("../views/supervisor/SupervisorAttendance.vue"),
+    meta: { requiresAuth: true, role: "SUPERVISOR" },
+  },
+  {
+    path: "/supervisor/profile",
+    name: "SupervisorProfile",
+    component: () => import("../views/supervisor/SupervisorProfile.vue"),
+    meta: { requiresAuth: true, role: "SUPERVISOR"},
   },
 
   // Admin panel

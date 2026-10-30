@@ -31,6 +31,11 @@ const getStudents = async (req, res) => {
         p.start_date,
         p.end_date,
         p.approval_status,
+        p.supervisor_id,
+        sup.first_name AS supervisor_first_name,
+        sup.last_name AS supervisor_last_name,
+        sup.email AS supervisor_email,
+
 
         g.latitude,
         g.longitude,
@@ -46,12 +51,15 @@ const getStudents = async (req, res) => {
           required_hours,
           start_date,
           end_date,
-          approval_status
+          approval_status,
+          supervisor_id
         FROM ojt_profiles
         WHERE user_id = u.id
         ORDER BY id DESC
         LIMIT 1
       ) p ON TRUE
+ 
+      LEFT JOIN users sup ON sup.id = p.supervisor_id
 
       LEFT JOIN LATERAL (
         SELECT

@@ -348,7 +348,12 @@ const updateProfile = async (req, res) => {
            approval_status = 'PENDING',
            reviewed_by = NULL,
            reviewed_at = NULL,
-           rejection_reason = NULL
+           rejection_reason = NULL,
+           -- A different company means a different supervisor.
+           supervisor_id = CASE
+             WHEN $7::boolean THEN NULL
+             ELSE supervisor_id
+           END
          WHERE id = $6
          RETURNING *`,
         [
@@ -358,6 +363,7 @@ const updateProfile = async (req, res) => {
           start_date || null,
           end_date || null,
           profile.id,
+          companyChanged || addressChanged,
         ]
       );
 

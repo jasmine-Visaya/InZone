@@ -1,862 +1,613 @@
-
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+// =====================================
+// SUPERVISOR DASHBOARD
+// Today's attendance of assigned students + reports waiting for review.
+// APIs: GET /api/supervisor/dashboard
+//       GET /api/supervisor/attendance        (today)
+//       GET /api/supervisor/reports/pending
+// =====================================
+import { computed, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { IonPage, IonContent, IonIcon } from '@ionic/vue';
 import {
-  locationOutline,
-  logOutOutline,
+  IonPage,
+  IonContent,
+  IonIcon,
+  onIonViewWillEnter,
+  onIonViewDidLeave,
+} from '@ionic/vue';
+import {
+  refreshOutline,
+  alertCircleOutline,
+  warningOutline,
+  peopleOutline,
+  enterOutline,
   documentTextOutline,
   checkmarkDoneOutline,
-  shieldCheckmarkOutline,
-  refreshOutline,
-  checkmarkCircleOutline,
-  closeCircleOutline,
-  alertCircleOutline,
-  timeOutline,
+  chevronForwardOutline,
+  personAddOutline,
 } from 'ionicons/icons';
+
+import InZoneTopbar from '@/components/InZoneTopbar.vue';
+import SupervisorBottomNav from './SupervisorBottomNav.vue';
+import {
+  supervisorRequest,
+  errorMessage,
+  fullName,
+  initials,
+  formatTime,
+  formatWeek,
+  formatWeekday,
+  formatHours,
+  elapsedSince,
+  attendanceLabel,
+  attendanceTone,
+  type DashboardSummary,
+  type DailyAttendanceResponse,
+  type DailyAttendance,
+  type WeeklyReport,
+} from './supervisorApi';
 
 const router = useRouter();
 
-const API_URL =
-  import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-interface WeeklyReport {
-  id: string | number;
-  user_id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  week_start: string;
-  week_end: string;
-  report: string;
-  status: string;
-  created_at: string;
-}
-
-const user = ref<{
-  first_name?: string;
-  last_name?: string;
-  role?: string;
-} | null>(null);
-
-const name = computed(() => user.value?.first_name || 'Supervisor');
-
-const reports = ref<WeeklyReport[]>([]);
+const summary = ref<DashboardSummary | null>(null);
+const today = ref<DailyAttendanceResponse | null>(null);
+const pending = ref<WeeklyReport[]>([]);
 const loading = ref(false);
-const refreshing = ref(false);
 const error = ref('');
-const successMessage = ref('');
-const reviewingId = ref<string | number | null>(null);
-const comments = ref<Record<string, string>>({});
+const now = ref(Date.now());
+let clock: ReturnType<typeof setInterval> | null = null;
 
-function getToken(): string {
-  return sessionStorage.getItem('inzone_token') || '';
-}
-
-async function loadPendingReports(isRefresh = false) {
-  if (isRefresh) {
-    refreshing.value = true;
-  } else {
-    loading.value = true;
-  }
-
-  error.value = '';
-  successMessage.value = '';
-
+const firstName = computed(() => {
   try {
-    const token = getToken();
-
-    if (!token) {
-      throw new Error('Your session has expired. Please log in again.');
-    }
-
-    const response = await fetch(
-      `${API_URL}/api/supervisor/reports/pending`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: 'no-store',
-      }
-    );
-
-    const data = await response.json().catch(() => ({}));
-
-    if (response.status === 401) {
-      sessionStorage.removeItem('inzone_token');
-      sessionStorage.removeItem('inzone_user');
-      router.replace('/');
-      return;
-    }
-
-    if (!response.ok || !data.success) {
-      throw new Error(
-        data.message || `Unable to load reports (${response.status}).`
-      );
-    }
-
-    reports.value = Array.isArray(data.reports) ? data.reports : [];
-  } catch (err) {
-    error.value =
-      err instanceof Error
-        ? err.message
-        : 'Something went wrong while loading reports.';
-  } finally {
-    loading.value = false;
-    refreshing.value = false;
-  }
-}
-
-async function reviewReport(
-  report: WeeklyReport,
-  status: 'APPROVED' | 'REJECTED'
-) {
-  const comment = (comments.value[String(report.id)] || '').trim();
-
-  if (status === 'REJECTED' && !comment) {
-    error.value = 'Please provide a comment explaining why the report was rejected.';
-    successMessage.value = '';
-    return;
-  }
-
-  const action = status === 'APPROVED' ? 'approve' : 'reject';
-
-  if (!window.confirm(`Are you sure you want to ${action} this report?`)) {
-    return;
-  }
-
-  reviewingId.value = report.id;
-  error.value = '';
-  successMessage.value = '';
-
-  try {
-    const token = getToken();
-
-    if (!token) {
-      throw new Error('Your session has expired. Please log in again.');
-    }
-
-    const response = await fetch(
-      `${API_URL}/api/supervisor/reports/${report.id}/review`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          status,
-          supervisor_comment: comment,
-        }),
-      }
-    );
-
-    const data = await response.json().catch(() => ({}));
-
-    if (response.status === 401) {
-      sessionStorage.removeItem('inzone_token');
-      sessionStorage.removeItem('inzone_user');
-      router.replace('/');
-      return;
-    }
-
-    if (!response.ok || !data.success) {
-      throw new Error(
-        data.message || `Unable to ${action} this report.`
-      );
-    }
-
-    successMessage.value =
-      data.message || `Report ${status.toLowerCase()} successfully.`;
-
-    delete comments.value[String(report.id)];
-
-    // Remove the reviewed report from the pending list.
-    reports.value = reports.value.filter(
-      item => String(item.id) !== String(report.id)
-    );
-  } catch (err) {
-    error.value =
-      err instanceof Error
-        ? err.message
-        : 'Something went wrong while reviewing the report.';
-  } finally {
-    reviewingId.value = null;
-  }
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) return 'Not available';
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value.slice(0, 10);
-  }
-
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'Asia/Manila',
-  }).format(date);
-}
-
-function logout() {
-  sessionStorage.removeItem('inzone_token');
-  sessionStorage.removeItem('inzone_user');
-  router.replace('/');
-}
-
-onMounted(() => {
-  try {
-    const saved = sessionStorage.getItem('inzone_user');
-    const parsed = saved ? JSON.parse(saved) : null;
-
-    if (
-      !parsed ||
-      String(parsed.role).toUpperCase() !== 'SUPERVISOR'
-    ) {
-      router.replace('/');
-      return;
-    }
-
-    user.value = parsed;
-    loadPendingReports();
+    const user = JSON.parse(sessionStorage.getItem('inzone_user') || '{}');
+    return user.first_name || 'Supervisor';
   } catch {
-    router.replace('/');
+    return 'Supervisor';
   }
 });
+
+const greeting = computed(() => {
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      hour12: false,
+      timeZone: 'Asia/Manila',
+    }).format(new Date(now.value))
+  );
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+});
+
+const hasStudents = computed(() => (summary.value?.assigned_students ?? 0) > 0);
+const firstLoad = computed(() => loading.value && !summary.value);
+
+const stats = computed(() => {
+  const s = summary.value;
+  return [
+    {
+      label: 'Students',
+      value: s?.assigned_students,
+      hint: 'assigned to you',
+      icon: peopleOutline,
+      tone: 'green',
+      to: '/supervisor/students',
+    },
+    {
+      label: 'In today',
+      value: s?.timed_in_today,
+      hint: s ? `${s.on_duty_now} still on duty` : '',
+      icon: enterOutline,
+      tone: 'blue',
+      to: '/supervisor/attendance',
+    },
+    {
+      label: 'To review',
+      value: s?.pending_reports,
+      hint: 'weekly reports',
+      icon: documentTextOutline,
+      tone: 'amber',
+      to: '/supervisor/reports',
+    },
+    {
+      label: 'Reviewed',
+      value: s?.reviewed_by_me,
+      hint: 'by you so far',
+      icon: checkmarkDoneOutline,
+      tone: 'mint',
+      to: '/supervisor/reports',
+    },
+  ];
+});
+
+function rowDetail(record: DailyAttendance): string {
+  if (record.status === 'ON_DUTY') {
+    return `In at ${formatTime(record.time_in)} · ${elapsedSince(record.time_in, now.value)} so far`;
+  }
+  if (record.status === 'COMPLETE') {
+    return `${formatTime(record.time_in)} – ${formatTime(record.time_out)} · ${formatHours(record.hours_worked)}`;
+  }
+  if (record.approval_status !== 'APPROVED') {
+    return 'Workplace not yet approved';
+  }
+  return 'No time-in yet';
+}
+
+async function loadDashboard() {
+  if (loading.value) return;
+  loading.value = true;
+  error.value = '';
+
+  try {
+    const [dashboard, attendance, reports] = await Promise.all([
+      supervisorRequest<{ summary: DashboardSummary }>('/api/supervisor/dashboard'),
+      supervisorRequest<DailyAttendanceResponse>('/api/supervisor/attendance'),
+      supervisorRequest<{ reports: WeeklyReport[] }>('/api/supervisor/reports/pending'),
+    ]);
+
+    summary.value = dashboard.summary;
+    today.value = attendance;
+    pending.value = Array.isArray(reports.reports) ? reports.reports : [];
+    now.value = Date.now();
+  } catch (err) {
+    error.value = errorMessage(err, 'Unable to load your dashboard.');
+  } finally {
+    loading.value = false;
+  }
+}
+
+function openReport(report: WeeklyReport) {
+  void router.push({ path: '/supervisor/reports', query: { open: String(report.id) } });
+}
+
+function stopClock() {
+  if (clock) clearInterval(clock);
+  clock = null;
+}
+
+onIonViewWillEnter(() => {
+  void loadDashboard();
+  stopClock();
+  // Keeps the "3h 12m so far" times current.
+  clock = setInterval(() => (now.value = Date.now()), 60_000);
+});
+
+onIonViewDidLeave(stopClock);
+onUnmounted(stopClock);
 </script>
 
 <template>
   <IonPage>
-    <IonContent :fullscreen="true" class="dashboard-content">
-      <div class="layout">
-        <header class="header">
-          <div class="brand">
-            <span class="logo">
-              <IonIcon :icon="locationOutline" />
-            </span>
-            <span>
-              InZone<span class="dot">.</span>
-              <small>Supervisor</small>
-            </span>
-          </div>
+    <IonContent :fullscreen="true" class="sv-content">
+      <InZoneTopbar role="SUPERVISOR" />
 
-          <button class="logout" type="button" @click="logout">
-            <IonIcon :icon="logOutOutline" />
-            Log out
+      <main class="sv-shell">
+        <header class="sv-heading">
+          <div>
+            <h1>{{ greeting }}, {{ firstName }}</h1>
+            <p>{{ today ? formatWeekday(today.today) : 'Here is how your OJT students are doing today.' }}</p>
+          </div>
+          <button class="sv-refresh" type="button" :disabled="loading" @click="loadDashboard">
+            <IonIcon :icon="refreshOutline" :class="{ 'sv-spin': loading }" />
+            <span>{{ loading ? 'Refreshing…' : 'Refresh' }}</span>
           </button>
         </header>
 
-        <main class="main">
-          <div class="heading">
-            <span class="eyebrow">
-              <IonIcon :icon="shieldCheckmarkOutline" />
-              SUPERVISOR WORKSPACE
-            </span>
+        <div v-if="error" class="sv-error" role="alert">
+          <IonIcon :icon="alertCircleOutline" />
+          <span>{{ error }}</span>
+          <button type="button" @click="loadDashboard">Try again</button>
+        </div>
 
-            <h1>Welcome, {{ name }}!</h1>
-            <p>Review weekly accomplishments submitted by OJT students.</p>
+        <button
+          v-if="summary && summary.missing_time_out > 0"
+          type="button"
+          class="missing-strip"
+          @click="router.push('/supervisor/attendance')"
+        >
+          <IonIcon :icon="warningOutline" />
+          <span>
+            <strong>{{ summary.missing_time_out }} past
+              {{ summary.missing_time_out === 1 ? 'day has' : 'days have' }} no time-out.</strong>
+            Those hours are not counted until it's sorted out.
+          </span>
+          <IonIcon :icon="chevronForwardOutline" class="strip-arrow" />
+        </button>
+
+        <section class="stats" aria-label="Summary">
+          <button
+            v-for="stat in stats"
+            :key="stat.label"
+            type="button"
+            class="stat"
+            @click="router.push(stat.to)"
+          >
+            <span class="stat-icon" :class="stat.tone"><IonIcon :icon="stat.icon" /></span>
+            <span class="stat-text">
+              <small>{{ stat.label }}</small>
+              <strong>{{ firstLoad ? '–' : stat.value ?? 0 }}</strong>
+              <em>{{ stat.hint }}</em>
+            </span>
+          </button>
+        </section>
+
+        <!-- No students assigned yet -->
+        <section v-if="summary && !hasStudents" class="sv-card">
+          <div class="sv-empty">
+            <IonIcon :icon="personAddOutline" />
+            <h3>No students assigned to you yet</h3>
+            <p>
+              Your OJT coordinator assigns students to you after approving their workplace.
+              Once they do, their attendance and weekly reports appear here.
+            </p>
           </div>
+        </section>
 
-          <section class="intro-card">
-            <div>
-              <span class="preview">SUPERVISOR DASHBOARD</span>
-              <h2>Weekly report review</h2>
-              <p>
-                Check each student's weekly accomplishments, then approve
-                the report or reject it with a comment explaining what
-                needs to be improved.
-              </p>
-            </div>
-
-            <span class="intro-icon">
-              <IonIcon :icon="checkmarkDoneOutline" />
-            </span>
-          </section>
-
-          <section class="reports-section">
-            <div class="section-heading">
+        <div v-else class="board">
+          <!-- TODAY AT THE WORKPLACE -->
+          <section class="sv-card roster-card">
+            <div class="sv-section-head">
               <div>
-                <h3>Pending Reports</h3>
-                <p>Reports waiting for your review.</p>
+                <h2>At the workplace today</h2>
+                <p v-if="today">
+                  {{ today.summary.on_duty }} on duty · {{ today.summary.complete }} done ·
+                  {{ today.summary.no_record }} not in
+                </p>
               </div>
-
-              <button
-                class="refresh-button"
-                type="button"
-                :disabled="loading || refreshing"
-                @click="loadPendingReports(true)"
-              >
-                <IonIcon :icon="refreshOutline" />
-                {{ refreshing ? 'Refreshing...' : 'Refresh' }}
+              <button type="button" class="sv-link" @click="router.push('/supervisor/attendance')">
+                Attendance log
               </button>
             </div>
 
-            <div v-if="error" class="message error-message" role="alert">
-              <IonIcon :icon="alertCircleOutline" />
-              {{ error }}
+            <div v-if="firstLoad" class="roster">
+              <div v-for="n in 3" :key="n" class="sv-skeleton roster-skeleton"></div>
             </div>
 
-            <div
-              v-if="successMessage"
-              class="message success-message"
-              role="status"
-            >
-              <IonIcon :icon="checkmarkCircleOutline" />
-              {{ successMessage }}
-            </div>
-
-            <div v-if="loading" class="empty-state">
-              Loading pending reports...
-            </div>
-
-            <div
-              v-else-if="!error && reports.length === 0"
-              class="empty-state"
-            >
-              <IonIcon :icon="documentTextOutline" />
-              <h4>No pending reports</h4>
-              <p>New student submissions will appear here.</p>
-            </div>
-
-            <article
-              v-for="report in reports"
-              :key="report.id"
-              class="report-card"
-            >
-              <div class="report-top">
-                <div class="student-info">
-                  <span class="student-icon">
-                    <IonIcon :icon="documentTextOutline" />
+            <ul v-else-if="today && today.records.length" class="roster">
+              <li v-for="record in today.records" :key="record.student_id">
+                <button
+                  type="button"
+                  class="roster-row"
+                  :class="attendanceTone(record.status)"
+                  @click="router.push(`/supervisor/students/${record.student_id}`)"
+                >
+                  <span class="sv-avatar">{{ initials(record) }}</span>
+                  <span class="roster-main">
+                    <span class="roster-top">
+                      <span class="sv-name">{{ fullName(record) }}</span>
+                      <span class="sv-pill" :class="attendanceTone(record.status)">
+                        {{ attendanceLabel(record.status) }}
+                      </span>
+                    </span>
+                    <span class="sv-sub">{{ record.company_name || 'No company' }}</span>
+                    <span class="roster-detail">{{ rowDetail(record) }}</span>
                   </span>
-
-                  <div>
-                    <h4>
-                      {{ report.first_name }} {{ report.last_name }}
-                    </h4>
-                    <p>{{ report.email }}</p>
-                  </div>
-                </div>
-
-                <span class="pending-label">
-                  <IonIcon :icon="timeOutline" />
-                  Pending
-                </span>
-              </div>
-
-              <div class="report-dates">
-                <div>
-                  <span>WEEK START</span>
-                  <strong>{{ formatDate(report.week_start) }}</strong>
-                </div>
-                <div>
-                  <span>WEEK END</span>
-                  <strong>{{ formatDate(report.week_end) }}</strong>
-                </div>
-                <div>
-                  <span>SUBMITTED</span>
-                  <strong>{{ formatDate(report.created_at) }}</strong>
-                </div>
-              </div>
-
-              <div class="report-body">
-                <h5>Weekly accomplishments</h5>
-                <p>{{ report.report || 'No report text provided.' }}</p>
-              </div>
-
-              <div class="review-field">
-                <label :for="`comment-${report.id}`">
-                  Supervisor comment
-                  <span>(required when rejecting)</span>
-                </label>
-
-                <textarea
-                  :id="`comment-${report.id}`"
-                  v-model="comments[String(report.id)]"
-                  placeholder="Write feedback or explain what needs to be improved..."
-                  rows="3"
-                  :disabled="reviewingId === report.id"
-                />
-              </div>
-
-              <div class="report-actions">
-                <button
-                  class="reject-button"
-                  type="button"
-                  :disabled="reviewingId !== null"
-                  @click="reviewReport(report, 'REJECTED')"
-                >
-                  <IonIcon :icon="closeCircleOutline" />
-                  {{ reviewingId === report.id ? 'Processing...' : 'Reject' }}
                 </button>
-
-                <button
-                  class="approve-button"
-                  type="button"
-                  :disabled="reviewingId !== null"
-                  @click="reviewReport(report, 'APPROVED')"
-                >
-                  <IonIcon :icon="checkmarkCircleOutline" />
-                  {{ reviewingId === report.id ? 'Processing...' : 'Approve' }}
-                </button>
-              </div>
-            </article>
+              </li>
+            </ul>
           </section>
 
-          <p class="note">
-            Attendance review and student monitoring will be added separately.
-          </p>
-        </main>
-      </div>
+          <!-- WAITING FOR REVIEW -->
+          <section class="sv-card review-card">
+            <div class="sv-section-head">
+              <div>
+                <h2>Waiting for your review</h2>
+                <p>Oldest submissions first.</p>
+              </div>
+            </div>
+
+            <div v-if="firstLoad" class="queue">
+              <div v-for="n in 2" :key="n" class="sv-skeleton queue-skeleton"></div>
+            </div>
+
+            <div v-else-if="!pending.length" class="sv-empty compact">
+              <IonIcon :icon="checkmarkDoneOutline" />
+              <h3>All caught up</h3>
+              <p>New weekly reports from your students will show up here.</p>
+            </div>
+
+            <ul v-else class="queue">
+              <li v-for="report in pending.slice(0, 4)" :key="report.id">
+                <button type="button" class="queue-row" @click="openReport(report)">
+                  <span class="queue-main">
+                    <span class="sv-name">{{ fullName(report) }}</span>
+                    <span class="sv-sub">Week of {{ formatWeek(report.week_start, report.week_end) }}</span>
+                  </span>
+                  <span class="queue-action">Review</span>
+                </button>
+              </li>
+            </ul>
+
+            <button
+              v-if="pending.length"
+              type="button"
+              class="sv-btn soft all-reports"
+              @click="router.push('/supervisor/reports')"
+            >
+              {{ pending.length > 4 ? `See all ${pending.length} reports` : 'Open reports' }}
+            </button>
+          </section>
+        </div>
+      </main>
     </IonContent>
+
+    <SupervisorBottomNav />
   </IonPage>
 </template>
 
+<style scoped src="./supervisor.css"></style>
 <style scoped>
-.dashboard-content {
-  --background: #f1f7f3;
-  --color: #163d32;
-}
-
-.layout {
-  min-height: 100%;
-  background: #f1f7f3;
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px max(24px, calc((100vw - 1100px) / 2));
-  background: #fff;
-  border-bottom: 1px solid #e0ebe4;
-  gap: 16px;
-}
-
-.brand {
+/* ---------- missing time-out strip ---------- */
+.missing-strip {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 23px;
-  font-weight: 850;
-  letter-spacing: -.8px;
-  color: #0c5c45;
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid #f2d3cd;
+  border-radius: 14px;
+  background: var(--sv-alert-soft);
+  color: #7c3026;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
 }
 
-.logo {
-  width: 37px;
-  height: 37px;
-  background: #0b795b;
-  color: white;
+.missing-strip > ion-icon:first-child {
+  font-size: 22px;
+  flex-shrink: 0;
+  color: var(--sv-alert);
+}
+
+.missing-strip strong {
+  font-weight: 800;
+}
+
+.strip-arrow {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+/* ---------- stats ---------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--sv-line);
+  border-radius: 18px;
+  background: #fff;
+  text-align: left;
+}
+
+.stat:hover {
+  border-color: #bfe0cc;
+}
+
+.stat-icon {
   display: grid;
   place-items: center;
-  border-radius: 11px;
-  font-size: 22px;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  font-size: 21px;
 }
 
-.dot {
-  color: #2ab280;
+.stat-icon.green { background: #e5f6ea; color: #0a845d; }
+.stat-icon.blue { background: var(--sv-active-soft); color: var(--sv-active); }
+.stat-icon.amber { background: var(--sv-waiting-soft); color: var(--sv-waiting); }
+.stat-icon.mint { background: #e1f4ee; color: #167e71; }
+
+.stat-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.brand small {
-  display: block;
-  font-size: 10px;
-  letter-spacing: .6px;
-  color: #80958b;
+.stat-text small {
+  color: var(--sv-muted);
+  font-size: 12px;
   font-weight: 700;
 }
 
-.logout,
-.refresh-button {
-  background: #eef7f1;
-  color: #0b7054;
-  border: 1px solid #d5e9dc;
-  padding: 11px 14px;
-  border-radius: 10px;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
+.stat-text strong {
+  color: var(--sv-ink);
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.6px;
 }
 
-.logout ion-icon,
-.refresh-button ion-icon {
-  font-size: 17px;
-}
-
-button:disabled {
-  opacity: .6;
-  cursor: not-allowed;
-}
-
-.main {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 38px 24px 70px;
-}
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: #0b8b64;
+.stat-text em {
+  font-style: normal;
+  color: #9aaca1;
   font-size: 11px;
-  letter-spacing: 1px;
-  font-weight: 800;
-}
-
-.eyebrow ion-icon {
-  font-size: 17px;
-}
-
-h1 {
-  color: #153e32;
-  font-size: clamp(30px, 4vw, 43px);
-  letter-spacing: -1.3px;
-  margin: 12px 0 6px;
-}
-
-.heading > p,
-.section-heading p {
-  margin: 0;
-  color: #788f82;
-  font-size: 14px;
-}
-
-.intro-card {
-  background: linear-gradient(125deg, #076a50, #064b43);
-  border-radius: 22px;
-  margin: 34px 0 35px;
-  padding: 32px 36px;
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-}
-
-.preview {
-  font-size: 10px;
-  color: #a6f0ce;
-  letter-spacing: 1.5px;
-  font-weight: 800;
-}
-
-.intro-card h2 {
-  margin: 12px 0;
-  font-size: 25px;
-  letter-spacing: -.6px;
-}
-
-.intro-card p {
-  max-width: 650px;
-  line-height: 1.7;
-  color: #cbeadd;
-  font-size: 13px;
-  margin: 0;
-}
-
-.intro-icon {
-  display: grid;
-  place-items: center;
-  background: #ffffff20;
-  width: 88px;
-  height: 88px;
-  flex-shrink: 0;
-  border-radius: 23px;
-  font-size: 44px;
-  color: #b1ffda;
-}
-
-.section-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-h3 {
-  font-size: 21px;
-  color: #153e32;
-  margin: 0 0 7px;
-}
-
-.empty-state {
-  text-align: center;
-  background: white;
-  border: 1px solid #dceae1;
-  border-radius: 18px;
-  padding: 38px 20px;
-  color: #748b7f;
-}
-
-.empty-state > ion-icon {
-  font-size: 36px;
-  color: #0b8b64;
-}
-
-.empty-state h4 {
-  color: #1c4637;
-  margin-bottom: 8px;
-}
-
-.empty-state p {
-  margin-bottom: 0;
-  font-size: 13px;
-}
-
-.report-card {
-  padding: 24px;
-  margin-bottom: 18px;
-  background: white;
-  border: 1px solid #dceae1;
-  border-radius: 18px;
-  box-shadow: 0 9px 25px #164b3710;
-}
-
-.report-top,
-.student-info,
-.report-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.student-info {
-  justify-content: flex-start;
-}
-
-.student-icon {
-  width: 45px;
-  height: 45px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  background: #e4f6eb;
-  color: #0a8a63;
-  font-size: 22px;
-}
-
-.student-info h4 {
-  color: #1c4637;
-  margin: 0 0 5px;
-  font-size: 16px;
-}
-
-.student-info p {
-  color: #748b7f;
-  margin: 0;
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.pending-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
   white-space: nowrap;
-  background: #fff5df;
-  color: #926315;
-  padding: 7px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.report-dates {
+/* ---------- board ---------- */
+.board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  padding: 18px 0;
-  margin-top: 18px;
-  border-top: 1px solid #edf2ee;
-  border-bottom: 1px solid #edf2ee;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
 }
 
-.report-dates div {
+/* ---------- roster (the signature element) ---------- */
+.roster,
+.queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
 }
 
-.report-dates span {
-  color: #84978c;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .6px;
-}
-
-.report-dates strong {
-  color: #315444;
-  font-size: 12px;
-}
-
-.report-body {
-  padding: 18px 0;
-}
-
-.report-body h5 {
-  margin: 0 0 9px;
-  color: #1c4637;
-  font-size: 14px;
-}
-
-.report-body p {
-  margin: 0;
-  color: #526c5f;
-  line-height: 1.7;
-  font-size: 14px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.review-field label {
-  display: block;
-  color: #315444;
-  font-size: 12px;
-  font-weight: 800;
-  margin-bottom: 8px;
-}
-
-.review-field label span {
-  color: #84978c;
-  font-weight: 500;
-}
-
-.review-field textarea {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  resize: vertical;
-  border: 1px solid #d5e5da;
-  border-radius: 10px;
-  padding: 12px;
-  font: inherit;
-  font-size: 13px;
-  color: #1c4637;
-  background: #fbfdfb;
-}
-
-.review-field textarea:focus {
-  outline: 2px solid #9bd9b9;
-  border-color: #0b8b64;
-}
-
-.report-actions {
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-
-.approve-button,
-.reject-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 0;
-  border-radius: 10px;
-  padding: 11px 15px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.approve-button {
-  background: #0b795b;
-  color: white;
-}
-
-.reject-button {
-  background: #fff0ef;
-  color: #b63838;
-  border: 1px solid #f3d5d2;
-}
-
-.message {
+.roster-row {
+  --rail: var(--sv-idle);
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 9px;
-  padding: 13px 15px;
-  border-radius: 11px;
-  margin: 15px 0;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 13px 13px 17px;
+  border: 1px solid #e6efe9;
+  border-radius: 14px;
+  background: #fcfefd;
+  text-align: left;
+  overflow: hidden;
+}
+
+.roster-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: var(--rail);
+}
+
+.roster-row.active { --rail: var(--sv-active); background: #f8fbfd; }
+.roster-row.done { --rail: var(--sv-accent); }
+.roster-row.alert { --rail: var(--sv-alert); }
+.roster-row.idle { --rail: #d3ddd7; }
+
+.roster-row:hover {
+  border-color: #c7e2d2;
+}
+
+.roster-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.roster-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.roster-detail {
+  margin-top: 7px;
+  color: var(--sv-ink-soft);
   font-size: 13px;
-  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
 }
 
-.error-message {
-  background: #fff0ef;
-  color: #a92f2f;
-  border: 1px solid #f3d5d2;
+.roster-row.active .roster-detail {
+  color: var(--sv-active);
+  font-weight: 700;
 }
 
-.success-message {
-  background: #e9f8ef;
-  color: #176d47;
-  border: 1px solid #ccebd8;
+.roster-row.idle .roster-detail {
+  color: var(--sv-muted);
 }
 
-.note {
-  margin-top: 24px;
-  color: #899d92;
+.roster-skeleton {
+  height: 78px;
+}
+
+/* ---------- review queue ---------- */
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #efe3c4;
+  border-radius: 14px;
+  background: #fffdf6;
+  text-align: left;
+}
+
+.queue-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.queue-action {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--sv-waiting-soft);
+  color: var(--sv-waiting);
   font-size: 12px;
+  font-weight: 800;
 }
 
-@media (max-width: 740px) {
-  .header {
-    padding: 16px 20px;
+.queue-skeleton {
+  height: 62px;
+}
+
+.all-reports {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.sv-empty.compact {
+  padding: 22px 10px;
+}
+
+@media (max-width: 960px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .main {
-    padding: 30px 20px 55px;
-  }
-
-  .intro-card {
-    padding: 26px 22px;
-  }
-
-  .intro-icon {
-    display: none;
-  }
-
-  .report-dates {
+  .board {
     grid-template-columns: 1fr;
   }
 
-  .report-top {
-    align-items: flex-start;
-  }
-
-  .report-card {
-    padding: 18px;
-  }
-
-  .student-info {
-    align-items: flex-start;
+  /* On phones, reviews come first: they are the action item. */
+  .review-card {
+    order: -1;
   }
 }
 
 @media (max-width: 420px) {
-  .brand {
-    font-size: 20px;
+  .stats {
+    gap: 9px;
   }
 
-  .logout {
-    padding: 9px 10px;
+  .stat {
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
   }
 
-  .section-heading {
+  .stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    font-size: 18px;
+  }
+
+  .stat-text strong {
+    font-size: 22px;
+  }
+
+  .roster-top {
+    flex-direction: column;
     align-items: flex-start;
-  }
-
-  .report-actions button {
-    flex: 1;
+    gap: 5px;
   }
 }
 </style>

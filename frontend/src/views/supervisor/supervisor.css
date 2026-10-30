@@ -1,0 +1,454 @@
+/* =====================================
+   SHARED SUPERVISOR STYLES
+   Used by every supervisor page with:
+   <style scoped src="./supervisor.css"></style>
+   Colors follow the existing InZone admin/student pages.
+===================================== */
+
+.sv-content {
+  --background: #f2f8f5;
+  --color: #163e30;
+}
+
+/* Modals are rendered outside the page, so they get the colors too. */
+.sv-content,
+.sv-modal {
+  --sv-ink: #163e30;
+  --sv-ink-soft: #3f6152;
+  --sv-muted: #7e9488;
+  --sv-line: #dfece4;
+  --sv-card: #ffffff;
+  --sv-primary: #0b7959;
+  --sv-primary-soft: #e3f4ea;
+  --sv-accent: #18aa7b;
+
+  --sv-active: #2f7fa6;
+  --sv-active-soft: #e5f1f8;
+  --sv-waiting: #96701d;
+  --sv-waiting-soft: #fff1cd;
+  --sv-alert: #b0473b;
+  --sv-alert-soft: #ffe9e5;
+  --sv-idle: #8a9a91;
+  --sv-idle-soft: #eef3f0;
+}
+
+.sv-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 30px clamp(16px, 4vw, 40px)
+    calc(140px + env(safe-area-inset-bottom, 0px));
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--sv-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- page heading ---------- */
+
+.sv-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.sv-heading h1 {
+  margin: 0 0 6px;
+  color: var(--sv-ink);
+  font-size: clamp(27px, 4vw, 36px);
+  letter-spacing: -0.9px;
+  line-height: 1.15;
+}
+
+.sv-heading p {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 60ch;
+}
+
+.sv-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 11px 15px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sv-primary-soft);
+  color: var(--sv-primary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sv-refresh ion-icon {
+  font-size: 17px;
+}
+
+/* ---------- cards & sections ---------- */
+
+.sv-card {
+  background: var(--sv-card);
+  border: 1px solid var(--sv-line);
+  border-radius: 20px;
+  padding: clamp(16px, 3vw, 24px);
+}
+
+.sv-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sv-section-head h2 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--sv-ink);
+  letter-spacing: -0.3px;
+}
+
+.sv-section-head p {
+  margin: 4px 0 0;
+  color: var(--sv-muted);
+  font-size: 13px;
+}
+
+.sv-link {
+  border: 0;
+  background: none;
+  padding: 6px 0;
+  color: var(--sv-primary);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ---------- messages ---------- */
+
+.sv-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  margin-bottom: 18px;
+  border-radius: 13px;
+  background: var(--sv-alert-soft);
+  color: #8f3328;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sv-error ion-icon {
+  font-size: 19px;
+  flex-shrink: 0;
+}
+
+.sv-error button {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 11px;
+  background: #fff;
+  color: #8f3328;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sv-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  margin-bottom: 18px;
+  border-radius: 13px;
+  background: var(--sv-primary-soft);
+  color: #12603f;
+  font-size: 13px;
+}
+
+.sv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 38px 18px;
+  text-align: center;
+  color: var(--sv-muted);
+}
+
+.sv-empty > ion-icon {
+  font-size: 34px;
+  color: #8bbda0;
+}
+
+.sv-empty h3 {
+  margin: 4px 0 0;
+  color: var(--sv-ink-soft);
+  font-size: 16px;
+}
+
+.sv-empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 44ch;
+}
+
+/* ---------- people ---------- */
+
+.sv-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--sv-primary-soft);
+  color: var(--sv-primary);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.sv-name {
+  margin: 0;
+  color: var(--sv-ink);
+  font-size: 15px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.sv-sub {
+  margin: 3px 0 0;
+  color: var(--sv-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- status pills ---------- */
+
+.sv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sv-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sv-pill.done { color: var(--sv-primary); background: var(--sv-primary-soft); }
+.sv-pill.active { color: var(--sv-active); background: var(--sv-active-soft); }
+.sv-pill.waiting { color: var(--sv-waiting); background: var(--sv-waiting-soft); }
+.sv-pill.alert { color: var(--sv-alert); background: var(--sv-alert-soft); }
+.sv-pill.idle { color: var(--sv-idle); background: var(--sv-idle-soft); }
+
+/* ---------- search ---------- */
+
+.sv-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid #d8e7de;
+  border-radius: 13px;
+  background: #fbfdfb;
+  color: var(--sv-muted);
+}
+
+.sv-search:focus-within {
+  border-color: var(--sv-primary);
+  box-shadow: 0 0 0 3px #0b795917;
+}
+
+.sv-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--sv-ink);
+  font-size: 14px;
+}
+
+/* ---------- segmented tabs ---------- */
+
+.sv-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #e7f1eb;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sv-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.sv-tabs button {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #5c7a6a;
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.sv-tabs button.is-active {
+  background: #fff;
+  color: var(--sv-ink);
+  box-shadow: 0 2px 8px #0f4a3014;
+}
+
+.sv-tabs .count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: #d6e9de;
+  color: #2c5a44;
+  font-size: 11px;
+}
+
+.sv-tabs button.is-active .count {
+  background: var(--sv-primary);
+  color: #fff;
+}
+
+/* ---------- progress ---------- */
+
+.sv-progress {
+  height: 7px;
+  border-radius: 99px;
+  background: #e5efe9;
+  overflow: hidden;
+}
+
+.sv-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--sv-primary), var(--sv-accent));
+}
+
+/* ---------- buttons ---------- */
+
+.sv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.sv-btn ion-icon {
+  font-size: 18px;
+}
+
+.sv-btn.primary { background: var(--sv-primary); color: #fff; }
+.sv-btn.soft { background: var(--sv-primary-soft); color: var(--sv-primary); }
+.sv-btn.danger { background: var(--sv-alert); color: #fff; }
+.sv-btn.danger-soft {
+  background: #fff;
+  color: var(--sv-alert);
+  border: 1px solid #f0cfc9;
+}
+.sv-btn.ghost {
+  background: #fff;
+  color: var(--sv-ink-soft);
+  border: 1px solid var(--sv-line);
+}
+
+/* ---------- loading skeleton ---------- */
+
+.sv-skeleton {
+  border-radius: 14px;
+  background: linear-gradient(90deg, #eef5f1 25%, #e3eee8 50%, #eef5f1 75%);
+  background-size: 200% 100%;
+  animation: sv-shimmer 1.3s linear infinite;
+}
+
+@keyframes sv-shimmer {
+  to { background-position: -200% 0; }
+}
+
+.sv-spin {
+  animation: sv-spin 0.8s linear infinite;
+}
+
+@keyframes sv-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  .sv-shell {
+    padding-top: 22px;
+  }
+
+  .sv-heading {
+    align-items: flex-start;
+  }
+
+  .sv-refresh span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sv-skeleton,
+  .sv-spin {
+    animation: none;
+  }
+}

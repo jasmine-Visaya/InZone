@@ -243,8 +243,119 @@ const reviewProfile = async (req, res) => {
   }
 };
 
+
+
+/* =========================================
+   ASSIGN OR CHANGE THE COMPANY SUPERVISOR
+   PATCH /api/ojt/review/:profileId/supervisor
+   Body: { "supervisor_id": "<uuid>" }  or  { "supervisor_id": null } to remove
+========================================= */
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const assignSupervisor = async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin access required.",
+      });
+    }
+
+    const rawId = req.body?.supervisor_id;
+    const supervisorId =
+      rawId === null || rawId === undefined || rawId === ""
+        ? null
+        : String(rawId).trim();
+
+    let supervisor = null;
+
+    if (supervisorId !== null) {
+      if (!UUID_PATTERN.test(supervisorId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid supervisor ID.",
+        });
+      }
+
+      const found = await pool.query(
+        `SELECT id, first_name, last_name, email, role, status
+         FROM users
+         WHERE id = $1`,
+        [supervisorId]
+      );
+
+      supervisor = found.rows[0] || null;
+
+      if (
+        !supervisor ||
+        String(supervisor.role).toUpperCase() !== "SUPERVISOR"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "The selected user is not a supervisor.",
+        });
+      }
+
+      if (String(supervisor.status).toUpperCase() !== "APPROVED") {
+        return res.status(400).json({
+          success: false,
+          message: "The selected supervisor account is not active.",
+        });
+      }
+    }
+
+    const updated = await pool.query(
+      `UPDATE ojt_profiles
+       SET supervisor_id = $1
+       WHERE id = $2
+       RETURNING id, user_id, supervisor_id`,
+      [supervisorId, req.params.profileId]
+    );
+
+    if (updated.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "OJT profile not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: supervisor
+        ? `${supervisor.first_name} ${supervisor.last_name} is now the student's supervisor.`
+        : "Supervisor removed from this student.",
+      profile: updated.rows[0],
+      supervisor: supervisor
+        ? {
+            id: supervisor.id,
+            first_name: supervisor.first_name,
+            last_name: supervisor.last_name,
+            email: supervisor.email,
+          }
+        : null,
+    });
+  } catch (error) {
+    if (error.code === "22P02") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OJT profile ID.",
+      });
+    }
+
+    console.error("Assign supervisor error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to assign the supervisor.",
+    });
+  }
+};
+
 module.exports = {
   getPendingProfiles,
   getProfileForReview,
   reviewProfile,
+  assignSupervisor,
 };

@@ -716,8 +716,9 @@ const getAttendancePhotoProof = async (
       String(req.user.id);
 
     // 3. Check assigned supervisor
+ //    (the supervisor set on the student's OJT profile)
     let isAssignedSupervisor = false;
-
+ 
     if (
       !isOwner &&
       String(req.user.role).toUpperCase() ===
@@ -725,8 +726,8 @@ const getAttendancePhotoProof = async (
     ) {
       const supervisorCheck = await pool.query(
         `SELECT 1
-         FROM weekly_reports
-         WHERE user_id = $1
+           FROM ojt_profiles
+           WHERE user_id = $1
            AND supervisor_id = $2
          LIMIT 1`,
         [

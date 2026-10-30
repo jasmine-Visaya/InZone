@@ -7,22 +7,20 @@ const requireSupervisor = require("../middleware/supervisorMiddleware");
 
 const {
     getPendingReports,
+    getMyStudentsReports,
     reviewReport
 } = require("../controllers/supervisorReportController");
 
 // All routes below require a valid supervisor JWT
-router.get(
-    "/pending",
-    authenticateToken,
-    requireSupervisor,
-    getPendingReports
-);
+router.use(authenticateToken, requireSupervisor);
 
-router.patch(
-    "/:reportId/review",
-    authenticateToken,
-    requireSupervisor,
-    reviewReport
-);
+// GET /api/supervisor/reports?status=PENDING|APPROVED|REJECTED
+router.get("/", getMyStudentsReports);
+
+// GET /api/supervisor/reports/pending
+router.get("/pending", getPendingReports);
+
+// PATCH /api/supervisor/reports/:reportId/review
+router.patch("/:reportId/review", reviewReport);
 
 module.exports = router;

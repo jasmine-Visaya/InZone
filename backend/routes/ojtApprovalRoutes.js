@@ -7,6 +7,7 @@ const {
   getPendingProfiles,
   getProfileForReview,
   reviewProfile,
+  assignSupervisor,
 } = require("../controllers/ojtApprovalController");
 
 const router = express.Router();
@@ -19,5 +20,8 @@ router.get("/pending", getPendingProfiles);
 router.get("/:profileId", getProfileForReview);
 
 router.patch("/:profileId", reviewProfile);
+
+// Assign / change / remove the student's company supervisor
+router.patch("/:profileId/supervisor", assignSupervisor);
 
 module.exports = router;
