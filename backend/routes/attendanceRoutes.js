@@ -1,22 +1,62 @@
+
 const express = require("express");
 const authenticateToken = require("../middleware/authMiddleware");
-const { timeIn, timeOut, getMyAttendanceHistory, getAttendancePhotoProof } = require("../controllers/attendanceController");
+
+const {
+  timeIn,
+  timeOut,
+  getMyAttendanceHistory,
+  getAttendancePhotoProof,
+  uploadAccomplishmentReport,
+  getAccomplishmentPhoto,
+} = require("../controllers/attendanceController");
+
 const uploadPhoto = require("../middleware/uploadMiddleware");
 
 const router = express.Router();
 
+// TIME IN
 router.post(
-    "/time-in",
-    authenticateToken,
-    uploadPhoto,
-    timeIn
+  "/time-in",
+  authenticateToken,
+  uploadPhoto,
+  timeIn
 );
-router.post("/time-out", authenticateToken, timeOut);
-router.get("/my-history", authenticateToken, getMyAttendanceHistory);
+
+// TIME OUT
+router.post(
+  "/time-out",
+  authenticateToken,
+  timeOut
+);
+
+// ATTENDANCE HISTORY
 router.get(
-    "/photo-proof/:attendanceId",
-    authenticateToken,
-    getAttendancePhotoProof
+  "/my-history",
+  authenticateToken,
+  getMyAttendanceHistory
+);
+
+// TIME-IN PHOTO PROOF
+router.get(
+  "/photo-proof/:attendanceId",
+  authenticateToken,
+  getAttendancePhotoProof
+);
+
+// UPLOAD DAILY ACCOMPLISHMENT REPORT
+router.post(
+  "/accomplishment/:attendanceId",
+  authenticateToken,
+  uploadPhoto,
+  uploadAccomplishmentReport
+);
+
+// VIEW ACCOMPLISHMENT REPORT
+router.get(
+  "/accomplishment/:attendanceId",
+  authenticateToken,
+  getAccomplishmentPhoto
 );
 
 module.exports = router;

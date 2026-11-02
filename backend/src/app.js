@@ -2,26 +2,46 @@
 const express = require("express");
 const cors = require("cors");
 
-// Authentication
+// =====================================
+// AUTHENTICATION ROUTES
+// =====================================
 const authRoutes = require("../routes/authRoutes");
 
-// Student
+// =====================================
+// STUDENT ROUTES
+// =====================================
 const ojtRoutes = require("../routes/ojtRoutes");
 const geofenceRoutes = require("../routes/geofenceRoutes");
 const attendanceRoutes = require("../routes/attendanceRoutes");
 const weeklyReportRoutes = require("../routes/weeklyReportRoutes");
-const supervisorReportRoutes = require("../routes/supervisorReportRoutes");
+const placesRoutes = require("../routes/placesRoutes");
+
+// =====================================
+// SUPERVISOR ROUTES
+// =====================================
 const supervisorRoutes = require("../routes/supervisorRoutes");
+const supervisorReportRoutes = require("../routes/supervisorReportRoutes");
+
+const supervisorAccomplishmentRoutes = require(
+  "../routes/supervisorAccomplishmentRoutes"
+);
+
+// =====================================
+// ADMIN ROUTES
+// =====================================
 const ojtApprovalRoutes = require("../routes/ojtApprovalRoutes");
 const adminStudentRoutes = require("../routes/adminStudentRoutes");
 const adminReportRoutes = require("../routes/adminReportRoutes");
-
 const adminUserRoutes = require("../routes/adminUserRoutes");
-const placesRoutes = require("../routes/placesRoutes");
 
-//tesing lang
+// =====================================
+// TEST ROUTES
+// =====================================
 const testRoutes = require("../routes/testRoutes");
 
+// =====================================
+// EXPRESS APPLICATION
+// =====================================
 const app = express();
 
 // =====================================
@@ -31,7 +51,7 @@ app.use(cors());
 app.use(express.json());
 
 // =====================================
-// HEALTH
+// HEALTH CHECK
 // =====================================
 app.get("/api/health", (req, res) => {
   res.json({
@@ -54,20 +74,6 @@ app.use("/api/places", placesRoutes);
 // STUDENT
 // =====================================
 app.use("/api/ojt", ojtRoutes);
-app.use("/api/geofences", geofenceRoutes);
-app.use("/api/attendance", attendanceRoutes);
-app.use("/api/weekly-reports", weeklyReportRoutes);
-app.use("/api/supervisor/reports", supervisorReportRoutes);
-
-// Dashboard, assigned students, attendance and profile
-app.use(
-  "/api/supervisor",
-  supervisorRoutes
-);
-
-app.use("/api/ojt/review", ojtApprovalRoutes);
-app.use("/api/admin/students", adminStudentRoutes);
-app.use("/api/admin/reports", adminReportRoutes);
 
 app.use("/api/geofences", geofenceRoutes);
 
@@ -76,7 +82,15 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/weekly-reports", weeklyReportRoutes);
 
 // =====================================
-// SUPERVISOR
+// SUPERVISOR - DAILY ACCOMPLISHMENTS
+// =====================================
+app.use(
+  "/api/supervisor/accomplishments",
+  supervisorAccomplishmentRoutes
+);
+
+// =====================================
+// SUPERVISOR - WEEKLY REPORTS
 // =====================================
 app.use(
   "/api/supervisor/reports",
@@ -84,7 +98,18 @@ app.use(
 );
 
 // =====================================
-// ADMIN OJT APPROVALS
+// SUPERVISOR - GENERAL
+// =====================================
+// Dashboard, assigned students,
+// attendance and supervisor profile
+
+app.use(
+  "/api/supervisor",
+  supervisorRoutes
+);
+
+// =====================================
+// ADMIN - OJT APPROVALS
 // =====================================
 app.use(
   "/api/ojt/review",
@@ -92,7 +117,7 @@ app.use(
 );
 
 // =====================================
-// ADMIN STUDENT MANAGEMENT
+// ADMIN - STUDENTS
 // =====================================
 app.use(
   "/api/admin/students",
@@ -100,7 +125,15 @@ app.use(
 );
 
 // =====================================
-// ADMIN USER MANAGEMENT
+// ADMIN - REPORTS
+// =====================================
+app.use(
+  "/api/admin/reports",
+  adminReportRoutes
+);
+
+// =====================================
+// ADMIN - USERS
 // =====================================
 app.use(
   "/api/admin/users",
@@ -108,8 +141,11 @@ app.use(
 );
 
 // =====================================
-// TEST
+// DEVELOPMENT TEST ROUTES
 // =====================================
 app.use("/api/test", testRoutes);
 
+// =====================================
+// EXPORT APPLICATION
+// =====================================
 module.exports = app;

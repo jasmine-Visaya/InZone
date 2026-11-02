@@ -124,6 +124,51 @@ function calculateDistance(
 }
 
 /* =========================================
+   HELPER: VALIDATE IMAGE
+========================================= */
+
+function validateAccomplishmentImage(photo) {
+  if (!photo?.buffer || !photo.buffer.length) {
+    return "A report photo is required.";
+  }
+
+  if (photo.buffer.length > 5 * 1024 * 1024) {
+    return "Report photo must not exceed 5 MB.";
+  }
+
+  const bytes = photo.buffer;
+
+  const jpeg =
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff;
+
+  const png =
+    bytes.length >= 8 &&
+    bytes.subarray(0, 8).equals(
+      Buffer.from([
+        0x89, 0x50, 0x4e, 0x47,
+        0x0d, 0x0a, 0x1a, 0x0a,
+      ])
+    );
+
+  const webp =
+    bytes.length >= 12 &&
+    bytes.toString("ascii", 0, 4) === "RIFF" &&
+    bytes.toString("ascii", 8, 12) === "WEBP";
+
+  const matches =
+    (photo.mimetype === "image/jpeg" && jpeg) ||
+    (photo.mimetype === "image/png" && png) ||
+    (photo.mimetype === "image/webp" && webp);
+
+  return matches
+    ? null
+    : "Only valid JPEG, PNG, or WEBP report photos are allowed.";
+}
+
+/* =========================================
    TIME IN
    POST /api/attendance/time-in
 ========================================= */
@@ -133,7 +178,7 @@ const timeIn = async (req, res) => {
     const { latitude, longitude } = req.body;
     const photo = req.file;
 
-    // 1. Validate GPS coordinates
+    // Validate GPS coordinates
     const coordinates = validateCoordinates(
       latitude,
       longitude
@@ -150,7 +195,7 @@ const timeIn = async (req, res) => {
     const lat = coordinates.latitude;
     const lon = coordinates.longitude;
 
-    // 2. Check OJT approval BEFORE uploading photos
+    // Check OJT approval
     const approval = await getApprovedOjtProfile(
       req.user.id
     );
@@ -163,7 +208,7 @@ const timeIn = async (req, res) => {
 
     const ojtProfileId = approval.profile.id;
 
-    // 3. Require a photo proof
+    // Require time-in photo
     if (!photo || !photo.buffer) {
       return res.status(400).json({
         success: false,
@@ -172,43 +217,17 @@ const timeIn = async (req, res) => {
       });
     }
 
-    // 4. Validate actual image signature
-    const buffer = photo.buffer;
+    // Validate image signature
+    const imageError = validateAccomplishmentImage(photo);
 
-    const isJpeg =
-      buffer.length >= 3 &&
-      buffer[0] === 0xff &&
-      buffer[1] === 0xd8 &&
-      buffer[2] === 0xff;
-
-    const isPng =
-      buffer.length >= 8 &&
-      buffer.subarray(0, 8).equals(
-        Buffer.from([
-          0x89, 0x50, 0x4e, 0x47,
-          0x0d, 0x0a, 0x1a, 0x0a,
-        ])
-      );
-
-    const isWebp =
-      buffer.length >= 12 &&
-      buffer.toString("ascii", 0, 4) === "RIFF" &&
-      buffer.toString("ascii", 8, 12) === "WEBP";
-
-    const validImageSignature =
-      (photo.mimetype === "image/jpeg" && isJpeg) ||
-      (photo.mimetype === "image/png" && isPng) ||
-      (photo.mimetype === "image/webp" && isWebp);
-
-    if (!validImageSignature) {
+    if (imageError) {
       return res.status(400).json({
         success: false,
-        message:
-          "Please upload a valid JPEG, PNG, or WEBP image.",
+        message: imageError,
       });
     }
 
-    // 5. Find assigned geofence
+    // Find assigned geofence
     const geofenceResult = await pool.query(
       `SELECT *
        FROM geofences
@@ -225,7 +244,7 @@ const timeIn = async (req, res) => {
 
     const geofence = geofenceResult.rows[0];
 
-    // 6. Calculate GPS distance
+    // Calculate GPS distance
     const distanceMeters = calculateDistance(
       lat,
       lon,
@@ -249,10 +268,10 @@ const timeIn = async (req, res) => {
       });
     }
 
-    // 7. Today's date in the Philippines
+    // Philippine date
     const today = getPhilippineDate();
 
-    // 8. Check if already timed in today
+    // Check duplicate time-in
     const existingAttendance = await pool.query(
       `SELECT *
        FROM attendance
@@ -269,23 +288,14 @@ const timeIn = async (req, res) => {
       });
     }
 
-    // 9. Determine photo file extension
-    const extensionByMimeType = {
+    // Generate unique storage filename
+    const extensions = {
       "image/jpeg": "jpg",
       "image/png": "png",
       "image/webp": "webp",
     };
 
-    const extension =
-      extensionByMimeType[photo.mimetype];
-
-    if (!extension) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Only JPEG, PNG, and WEBP photos are allowed.",
-      });
-    }
+    const extension = extensions[photo.mimetype];
 
     const fileName =
       `${crypto.randomUUID()}.${extension}`;
@@ -293,20 +303,23 @@ const timeIn = async (req, res) => {
     const photoPath =
       `${req.user.id}/${today}/${fileName}`;
 
-    // 10. Upload photo to private Supabase bucket
+    // Upload to private Supabase Storage
+    const storage = supabase.storage.from(
+      "ojt-photo-proofs"
+    );
+
     const { error: uploadError } =
-      await supabase.storage
-        .from("ojt-photo-proofs")
-        .upload(photoPath, photo.buffer, {
+      await storage.upload(
+        photoPath,
+        photo.buffer,
+        {
           contentType: photo.mimetype,
           upsert: false,
-        });
+        }
+      );
 
     if (uploadError) {
-      console.error(
-        "Photo upload error:",
-        uploadError
-      );
+      console.error("Photo upload error:", uploadError);
 
       return res.status(500).json({
         success: false,
@@ -315,22 +328,25 @@ const timeIn = async (req, res) => {
       });
     }
 
-    // 11. Save attendance record
+    // Save attendance
     try {
       const result = await pool.query(
         `INSERT INTO attendance
-          (
-            user_id,
-            geofence_id,
-            attendance_date,
-            time_in,
-            latitude_in,
-            longitude_in,
-            time_in_status,
-            photo_proof_path
-          )
+         (
+           user_id,
+           geofence_id,
+           attendance_date,
+           time_in,
+           latitude_in,
+           longitude_in,
+           time_in_status,
+           photo_proof_path
+         )
          VALUES
-          ($1, $2, $3, NOW(), $4, $5, 'VALID', $6)
+         (
+           $1, $2, $3, NOW(),
+           $4, $5, 'VALID', $6
+         )
          RETURNING *`,
         [
           req.user.id,
@@ -358,11 +374,9 @@ const timeIn = async (req, res) => {
       });
 
     } catch (databaseError) {
-      // Remove uploaded photo when DB insert fails
+      // Clean up uploaded photo if database fails
       const { error: cleanupError } =
-        await supabase.storage
-          .from("ojt-photo-proofs")
-          .remove([photoPath]);
+        await storage.remove([photoPath]);
 
       if (cleanupError) {
         console.error(
@@ -385,6 +399,317 @@ const timeIn = async (req, res) => {
 };
 
 /* =========================================
+   UPLOAD DAILY ACCOMPLISHMENT REPORT
+   POST /api/attendance/accomplishment/:attendanceId
+========================================= */
+
+const uploadAccomplishmentReport = async (req, res) => {
+  try {
+    // Check OJT approval
+    const approval = await getApprovedOjtProfile(
+      req.user.id
+    );
+
+    if (!approval.allowed) {
+      return res
+        .status(approval.statusCode)
+        .json(approval.response);
+    }
+
+    // Validate uploaded report image
+    const imageError = validateAccomplishmentImage(
+      req.file
+    );
+
+    if (imageError) {
+      return res.status(400).json({
+        success: false,
+        message: imageError,
+      });
+    }
+
+    const today = getPhilippineDate();
+    const attendanceId = req.params.attendanceId;
+
+    // Find today's attendance owned by student
+    const lookup = await pool.query(
+      `SELECT
+         id,
+         user_id,
+         time_in,
+         time_out,
+         accomplishment_photo_path
+       FROM attendance
+       WHERE id = $1
+         AND user_id = $2
+         AND attendance_date = $3
+       LIMIT 1`,
+      [
+        attendanceId,
+        req.user.id,
+        today,
+      ]
+    );
+
+    if (!lookup.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Today's attendance record not found.",
+      });
+    }
+
+    const attendance = lookup.rows[0];
+
+    // Must have Time In but not Time Out
+    if (!attendance.time_in || attendance.time_out) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "You can upload a report only after Time In and before Time Out.",
+      });
+    }
+
+    // Do not accept duplicate reports
+    if (attendance.accomplishment_photo_path) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Daily accomplishment report already uploaded.",
+      });
+    }
+
+    const extensions = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+    };
+
+    const fileName =
+      `${crypto.randomUUID()}.${extensions[req.file.mimetype]}`;
+
+    const storagePath =
+      `${req.user.id}/${today}/accomplishment/${fileName}`;
+
+    // Upload report to private Supabase bucket
+    const storage = supabase.storage.from(
+      "ojt-photo-proofs"
+    );
+
+    const { error: storageError } =
+      await storage.upload(
+        storagePath,
+        req.file.buffer,
+        {
+          contentType: req.file.mimetype,
+          upsert: false,
+        }
+      );
+
+    if (storageError) {
+      console.error(
+        "Accomplishment upload error:",
+        storageError
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to store report photo.",
+      });
+    }
+
+    try {
+      // Save report path only for active attendance
+      const saved = await pool.query(
+        `UPDATE attendance
+         SET
+           accomplishment_photo_path = $1,
+           accomplishment_uploaded_at = NOW()
+         WHERE id = $2
+           AND user_id = $3
+           AND attendance_date = $4
+           AND time_in IS NOT NULL
+           AND time_out IS NULL
+           AND accomplishment_photo_path IS NULL
+         RETURNING
+           id,
+           accomplishment_uploaded_at`,
+        [
+          storagePath,
+          attendanceId,
+          req.user.id,
+          today,
+        ]
+      );
+
+      if (!saved.rows.length) {
+        const cleanup = await storage.remove([
+          storagePath,
+        ]);
+
+        if (cleanup.error) {
+          console.error(
+            "Accomplishment cleanup failed:",
+            cleanup.error
+          );
+        }
+
+        return res.status(409).json({
+          success: false,
+          message:
+            "Report could not be saved; attendance may already be completed.",
+        });
+      }
+
+      return res.status(201).json({
+        success: true,
+        message:
+          "Daily accomplishment report uploaded successfully.",
+        attendance_id: saved.rows[0].id,
+        accomplishment_uploaded: true,
+        accomplishment_uploaded_at:
+          saved.rows[0].accomplishment_uploaded_at,
+      });
+
+    } catch (dbError) {
+      // Delete uploaded image if database update fails
+      const cleanup = await storage.remove([
+        storagePath,
+      ]);
+
+      if (cleanup.error) {
+        console.error(
+          "Accomplishment cleanup failed:",
+          cleanup.error
+        );
+      }
+
+      throw dbError;
+    }
+
+  } catch (error) {
+    console.error(
+      "Submit accomplishment report error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error.",
+    });
+  }
+};
+
+/* =========================================
+   GET ACCOMPLISHMENT REPORT PHOTO
+   GET /api/attendance/accomplishment/:attendanceId
+========================================= */
+
+const getAccomplishmentPhoto = async (req, res) => {
+  try {
+    const lookup = await pool.query(
+      `SELECT
+         id,
+         user_id,
+         accomplishment_photo_path
+       FROM attendance
+       WHERE id = $1
+       LIMIT 1`,
+      [req.params.attendanceId]
+    );
+
+    if (
+      !lookup.rows.length ||
+      !lookup.rows[0].accomplishment_photo_path
+    ) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Accomplishment report not found.",
+      });
+    }
+
+    const attendance = lookup.rows[0];
+
+    // Student may view their own report
+    const isOwner =
+      String(attendance.user_id) ===
+      String(req.user.id);
+
+    let isSupervisor = false;
+
+    // Assigned supervisor may also view the report
+    if (
+      !isOwner &&
+      String(req.user.role).toUpperCase() ===
+        "SUPERVISOR"
+    ) {
+      const linked = await pool.query(
+        `SELECT 1
+         FROM ojt_profiles
+         WHERE user_id = $1
+           AND supervisor_id = $2
+         LIMIT 1`,
+        [
+          attendance.user_id,
+          req.user.id,
+        ]
+      );
+
+      isSupervisor = linked.rows.length > 0;
+    }
+
+    if (!isOwner && !isSupervisor) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Not authorized to view this report.",
+      });
+    }
+
+    // Create temporary signed image URL
+    const { data, error } =
+      await supabase.storage
+        .from("ojt-photo-proofs")
+        .createSignedUrl(
+          attendance.accomplishment_photo_path,
+          300
+        );
+
+    if (error || !data?.signedUrl) {
+      console.error(
+        "Accomplishment signed URL error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to retrieve report photo.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      photo_url: data.signedUrl,
+      expires_in_seconds: 300,
+    });
+
+  } catch (error) {
+    console.error(
+      "Get accomplishment report error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error.",
+    });
+  }
+};
+
+/* =========================================
    TIME OUT
    POST /api/attendance/time-out
 ========================================= */
@@ -393,7 +718,7 @@ const timeOut = async (req, res) => {
   try {
     const { latitude, longitude } = req.body;
 
-    // 1. Validate GPS coordinates
+    // Validate GPS coordinates
     const coordinates = validateCoordinates(
       latitude,
       longitude
@@ -410,7 +735,7 @@ const timeOut = async (req, res) => {
     const lat = coordinates.latitude;
     const lon = coordinates.longitude;
 
-    // 2. Check OJT approval
+    // Check OJT approval
     const approval = await getApprovedOjtProfile(
       req.user.id
     );
@@ -423,7 +748,7 @@ const timeOut = async (req, res) => {
 
     const ojtProfileId = approval.profile.id;
 
-    // 3. Find assigned geofence
+    // Find assigned geofence
     const geofenceResult = await pool.query(
       `SELECT *
        FROM geofences
@@ -440,7 +765,7 @@ const timeOut = async (req, res) => {
 
     const geofence = geofenceResult.rows[0];
 
-    // 4. Calculate distance
+    // Calculate distance
     const distanceMeters = calculateDistance(
       lat,
       lon,
@@ -466,10 +791,9 @@ const timeOut = async (req, res) => {
       });
     }
 
-    // 5. Today's Philippine date
     const today = getPhilippineDate();
 
-    // 6. Find today's attendance record
+    // Find today's attendance
     const attendanceResult = await pool.query(
       `SELECT *
        FROM attendance
@@ -488,7 +812,7 @@ const timeOut = async (req, res) => {
 
     const attendance = attendanceResult.rows[0];
 
-    // 7. Check if already timed out
+    // Prevent duplicate Time Out
     if (attendance.time_out !== null) {
       return res.status(409).json({
         success: false,
@@ -497,7 +821,18 @@ const timeOut = async (req, res) => {
       });
     }
 
-    // 8. Record Time Out
+    // ACCOMPLISHMENT REPORT REQUIRED
+    if (!attendance.accomplishment_photo_path) {
+      return res.status(400).json({
+        success: false,
+        code: "ACCOMPLISHMENT_REQUIRED",
+        message:
+          "Upload your daily accomplishment report before Time Out.",
+      });
+    }
+
+    // Record Time Out
+    // Recheck accomplishment condition in SQL
     const result = await pool.query(
       `UPDATE attendance
        SET
@@ -506,12 +841,17 @@ const timeOut = async (req, res) => {
          longitude_out = $2,
          time_out_status = 'VALID'
        WHERE id = $3
+         AND user_id = $4
+         AND attendance_date = $5
          AND time_out IS NULL
+         AND accomplishment_photo_path IS NOT NULL
        RETURNING *`,
       [
         lat,
         lon,
         attendance.id,
+        req.user.id,
+        today,
       ]
     );
 
@@ -519,13 +859,13 @@ const timeOut = async (req, res) => {
       return res.status(409).json({
         success: false,
         message:
-          "You have already timed out today.",
+          "Attendance has already been completed or updated.",
       });
     }
 
     const updatedAttendance = result.rows[0];
 
-    // 9. Calculate hours worked
+    // Calculate working hours
     const timeInDate = new Date(
       updatedAttendance.time_in
     );
@@ -554,7 +894,6 @@ const timeOut = async (req, res) => {
     const secondsWorked =
       workedSeconds % 60;
 
-    // 10. Return attendance and working hours
     return res.json({
       success: true,
       message:
@@ -613,6 +952,10 @@ const getMyAttendanceHistory = async (req, res) => {
          longitude_out,
          time_in_status,
          time_out_status,
+         (
+           accomplishment_photo_path IS NOT NULL
+         ) AS accomplishment_uploaded,
+         accomplishment_uploaded_at,
          CASE
            WHEN time_in IS NOT NULL
              AND time_out IS NOT NULL
@@ -670,17 +1013,15 @@ const getMyAttendanceHistory = async (req, res) => {
 };
 
 /* =========================================
-   GET ATTENDANCE PHOTO PROOF
+   GET TIME-IN PHOTO PROOF
+   GET /api/attendance/photo-proof/:attendanceId
 ========================================= */
 
-const getAttendancePhotoProof = async (
-  req,
-  res
-) => {
+const getAttendancePhotoProof = async (req, res) => {
   try {
     const { attendanceId } = req.params;
 
-    // 1. Find attendance record and photo path
+    // Find attendance record
     const result = await pool.query(
       `SELECT
          id,
@@ -710,15 +1051,13 @@ const getAttendancePhotoProof = async (
       });
     }
 
-    // 2. Check student ownership
+    // Check ownership
     const isOwner =
       String(attendance.user_id) ===
       String(req.user.id);
 
-    // 3. Check assigned supervisor
- //    (the supervisor set on the student's OJT profile)
     let isAssignedSupervisor = false;
- 
+
     if (
       !isOwner &&
       String(req.user.role).toUpperCase() ===
@@ -726,8 +1065,8 @@ const getAttendancePhotoProof = async (
     ) {
       const supervisorCheck = await pool.query(
         `SELECT 1
-           FROM ojt_profiles
-           WHERE user_id = $1
+         FROM ojt_profiles
+         WHERE user_id = $1
            AND supervisor_id = $2
          LIMIT 1`,
         [
@@ -740,10 +1079,7 @@ const getAttendancePhotoProof = async (
         supervisorCheck.rows.length > 0;
     }
 
-    if (
-      !isOwner &&
-      !isAssignedSupervisor
-    ) {
+    if (!isOwner && !isAssignedSupervisor) {
       return res.status(403).json({
         success: false,
         message:
@@ -751,7 +1087,7 @@ const getAttendancePhotoProof = async (
       });
     }
 
-    // 4. Generate temporary signed URL
+    // Generate signed URL
     const { data, error } =
       await supabase.storage
         .from("ojt-photo-proofs")
@@ -796,7 +1132,7 @@ const getAttendancePhotoProof = async (
 };
 
 /* =========================================
-   EXPORT CONTROLLERS
+   EXPORT ALL CONTROLLERS
 ========================================= */
 
 module.exports = {
@@ -804,4 +1140,6 @@ module.exports = {
   timeOut,
   getMyAttendanceHistory,
   getAttendancePhotoProof,
+  uploadAccomplishmentReport,
+  getAccomplishmentPhoto,
 };

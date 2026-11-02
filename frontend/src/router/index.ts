@@ -80,6 +80,20 @@ const routes: RouteRecordRaw[] = [
     component: () => import("../views/supervisor/SupervisorProfile.vue"),
     meta: { requiresAuth: true, role: "SUPERVISOR"},
   },
+  
+  {
+  path: '/supervisor/daily-accomplishments',
+    name: 'SupervisorDailyAccomplishments',
+    component: () =>
+      import(
+        '@/views/supervisor/SupervisorDailyAccomplishments.vue'
+      ),
+    meta: {
+      requiresAuth: true,
+      role: 'SUPERVISOR',
+    },
+  },
+
 
   // Admin panel
   {

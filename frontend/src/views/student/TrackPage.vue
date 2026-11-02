@@ -7,6 +7,9 @@ import {
 } from 'vue';
 
 import { useRouter } from 'vue-router';
+import { Capacitor } from '@capacitor/core';
+import { Camera } from '@capacitor/camera';
+import { Geolocation } from '@capacitor/geolocation';
 
 import {
   IonPage,
@@ -94,6 +97,8 @@ interface AttendanceRecord {
   time_out?: string | null;
   clock_in?: string | null;
   clock_out?: string | null;
+  accomplishment_uploaded?: boolean;
+  accomplishment_uploaded_at?: string | null;
 }
 
 /* =====================================
@@ -131,6 +136,10 @@ const photo = ref<File | null>(null);
 const photoPreview = ref('');
 
 const fileInput = ref<HTMLInputElement | null>(null);
+const reportInput = ref<HTMLInputElement | null>(null);
+const reportPhoto = ref<File | null>(null);
+const reportPreview = ref('');
+const uploadingReport = ref(false);
 
 const todayAttendance = ref<AttendanceRecord | null>(null);
 const attendanceLoaded = ref(false);
@@ -208,6 +217,25 @@ const canTimeIn = computed(() => {
   );
 });
 
+// Must come from the backend; selecting a photo isn't enough.
+const hasUploadedReport = computed(() =>
+  todayAttendance.value?.accomplishment_uploaded === true
+);
+
+const canCaptureReport = computed(() =>
+  isApproved.value &&
+  attendanceLoaded.value &&
+  hasTimedIn.value &&
+  !hasTimedOut.value &&
+  !hasUploadedReport.value &&
+  !submitting.value &&
+  !uploadingReport.value
+);
+
+const canUploadReport = computed(() =>
+  canCaptureReport.value && reportPhoto.value !== null
+);
+
 const canTimeOut = computed(() => {
   return (
     isApproved.value &&
@@ -215,8 +243,10 @@ const canTimeOut = computed(() => {
     isInside.value &&
     hasTimedIn.value &&
     !hasTimedOut.value &&
+    hasUploadedReport.value &&
     !checking.value &&
-    !submitting.value
+    !submitting.value &&
+    !uploadingReport.value
   );
 });
 
@@ -357,6 +387,15 @@ function clearPhoto() {
   if (fileInput.value) {
     fileInput.value.value = '';
   }
+}
+
+function clearReportPhoto() {
+  reportPhoto.value = null;
+  if (reportPreview.value) {
+    URL.revokeObjectURL(reportPreview.value);
+    reportPreview.value = '';
+  }
+  if (reportInput.value) reportInput.value.value = '';
 }
 
 function resetVerification() {
@@ -550,12 +589,20 @@ async function loadAttendance() {
 
     const today = philippineDate();
 
-    todayAttendance.value =
-      records.find(
-        (record: AttendanceRecord) =>
-          recordDate(record) === today
-      ) ?? null;
+    const found = records.find(
+      (record: AttendanceRecord) =>
+        recordDate(record) === today
+    ) ?? null;
 
+    if (
+      String(found?.id ?? '') !==
+      String(todayAttendance.value?.id ?? '') ||
+      found?.accomplishment_uploaded === true
+    ) {
+      clearReportPhoto();
+    }
+
+    todayAttendance.value = found;
     attendanceLoaded.value = true;
 
   } catch (err) {
@@ -573,58 +620,51 @@ async function loadAttendance() {
    GET GPS COORDINATES
 ===================================== */
 
-function getCurrentCoordinates():
-  Promise<Coordinates> {
-  return new Promise(
-    (resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(
-          new Error(
-            'GPS is not available.'
-          )
-        );
-
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            latitude:
-              position.coords.latitude,
-            longitude:
-              position.coords.longitude,
-            accuracy:
-              position.coords.accuracy,
-          });
-        },
-
-        (gpsError) => {
-          let message =
-            'Unable to determine location.';
-
-          if (gpsError.code === 1) {
-            message =
-              'Location permission denied. Enable GPS access.';
-          } else if (gpsError.code === 2) {
-            message =
-              'Your location is unavailable.';
-          } else if (gpsError.code === 3) {
-            message =
-              'GPS request timed out. Try again.';
-          }
-
-          reject(new Error(message));
-        },
-
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0,
-        }
+async function getCurrentCoordinates(): Promise<Coordinates> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      });
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      };
+    } catch (cause) {
+      throw new Error(
+        cause instanceof Error
+          ? `GPS error: ${cause.message}`
+          : 'Unable to get device GPS. Enable precise location access.'
       );
     }
-  );
+  }
+
+  // Browser fallback for desktop testing.
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('GPS is not available.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
+      }),
+      (gpsError) => {
+        const messages: Record<number, string> = {
+          1: 'Location permission denied. Enable GPS access.',
+          2: 'Your location is unavailable.',
+          3: 'GPS request timed out. Try again.',
+        };
+        reject(new Error(messages[gpsError.code] || 'Unable to determine location.'));
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
 }
 
 /* =====================================
@@ -727,18 +767,130 @@ async function checkLocation() {
    CAMERA
 ===================================== */
 
-function openCamera() {
+// Capacitor 8.1+ native camera. The web build keeps the file-input fallback.
+async function takeDevicePhoto(label: 'time-in' | 'accomplishment'): Promise<File> {
+  const image = await Camera.takePhoto({
+    quality: 80,
+    saveToGallery: false,
+    correctOrientation: true,
+  });
+  if (!image.webPath) {
+  throw new Error('Camera photo path is unavailable.');
+  }
+
+  const response = await fetch(image.webPath);
+  if (!response.ok) throw new Error('Could not read captured photo.');
+  const blob = await response.blob();
+  const type = blob.type || 'image/jpeg';
+  const extension = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
+  const file = new File([blob], `${label}-${Date.now()}.${extension}`, { type });
+  validateSelectedPhoto(file);
+  return file;
+}
+
+function validateSelectedPhoto(file: File) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    throw new Error('Only JPG, PNG, or WEBP photos are allowed.');
+  }
+  if (file.size > 5 * 1024 * 1024 || file.size === 0) {
+    throw new Error('Photo must be greater than 0 and at most 5 MB.');
+  }
+}
+
+function isCameraCancellation(cause: unknown): boolean {
+  return cause instanceof Error && /cancel|dismiss/i.test(cause.message);
+}
+
+async function openCamera() {
   error.value = '';
   success.value = '';
-
   if (!canCapturePhoto.value) {
-    error.value =
-      'Verify that you are inside your company geofence before taking a photo.';
-
+    error.value = 'Verify that you are inside your company geofence before taking a photo.';
     return;
   }
 
-  fileInput.value?.click();
+  if (!Capacitor.isNativePlatform()) {
+    fileInput.value?.click();
+    return;
+  }
+  try {
+    const file = await takeDevicePhoto('time-in');
+    if (!canCapturePhoto.value) return;
+    clearPhoto();
+    photo.value = file;
+    photoPreview.value = URL.createObjectURL(file);
+  } catch (cause) {
+    if (!isCameraCancellation(cause)) {
+      error.value = cause instanceof Error ? cause.message : 'Could not capture photo.';
+    }
+  }
+}
+
+async function openReportCamera() {
+  error.value = '';
+  success.value = '';
+  if (!canCaptureReport.value) return;
+  if (!Capacitor.isNativePlatform()) {
+    reportInput.value?.click();
+    return;
+  }
+  try {
+    const file = await takeDevicePhoto('accomplishment');
+    if (!canCaptureReport.value) return;
+    clearReportPhoto();
+    reportPhoto.value = file;
+    reportPreview.value = URL.createObjectURL(file);
+  } catch (cause) {
+    if (!isCameraCancellation(cause)) {
+      error.value = cause instanceof Error ? cause.message : 'Could not capture report.';
+    }
+  }
+}
+
+function onReportPhotoSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!canCaptureReport.value) {
+    clearReportPhoto();
+    return;
+  }
+  try {
+    validateSelectedPhoto(file);
+    clearReportPhoto();
+    reportPhoto.value = file;
+    reportPreview.value = URL.createObjectURL(file);
+  } catch (cause) {
+    clearReportPhoto();
+    error.value = cause instanceof Error ? cause.message : 'Invalid report photo.';
+  }
+}
+
+async function uploadAccomplishment() {
+  const id = todayAttendance.value?.id;
+  const selectedPhoto = reportPhoto.value;
+  if (!canUploadReport.value || !id || !selectedPhoto) return;
+
+  uploadingReport.value = true;
+  error.value = '';
+  success.value = '';
+  try {
+    const formData = new FormData();
+    formData.append('photo', selectedPhoto);
+    await apiRequest(`/api/attendance/accomplishment/${encodeURIComponent(String(id))}`, {
+      method: 'POST',
+      body: formData,
+    });
+    await loadAttendance();
+    if (!hasUploadedReport.value) {
+      throw new Error('Upload was received but its saved status could not be verified. Refresh attendance.');
+    }
+    success.value = 'Daily accomplishment report uploaded! Verify GPS to enable Time Out.';
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'Report upload failed.';
+  } finally {
+    uploadingReport.value = false;
+  }
 }
 
 function onPhotoSelected(event: Event) {
@@ -759,32 +911,11 @@ function onPhotoSelected(event: Event) {
     return;
   }
 
-  const acceptedTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-  ];
-
-  if (!acceptedTypes.includes(
-    selected.type
-  )) {
+  try {
+    validateSelectedPhoto(selected);
+  } catch (cause) {
     clearPhoto();
-
-    error.value =
-      'Only JPG, PNG, or WEBP photos are allowed.';
-
-    return;
-  }
-
-  if (
-    selected.size >
-    5 * 1024 * 1024
-  ) {
-    clearPhoto();
-
-    error.value =
-      'Photo must not exceed 5 MB.';
-
+    error.value = cause instanceof Error ? cause.message : 'Invalid time-in photo.';
     return;
   }
 
@@ -932,6 +1063,7 @@ function viewOjtProfile() {
 onIonViewWillEnter(() => {
   error.value = '';
   success.value = '';
+  clearReportPhoto();
 
   if (!clockInterval) {
     clockInterval = setInterval(() => {
@@ -962,6 +1094,7 @@ onUnmounted(() => {
   }
 
   clearPhoto();
+  clearReportPhoto();
 });
 </script>
 
@@ -983,8 +1116,8 @@ onUnmounted(() => {
             </h1>
 
             <p>
-              Verify your workplace
-              before checking in.
+              Verify GPS, capture attendance,
+              and submit your daily report.
             </p>
           </div>
 
@@ -1573,6 +1706,65 @@ onUnmounted(() => {
             </p>
           </section>
 
+          <!-- DAILY ACCOMPLISHMENT REPORT -->
+          <section v-if="hasTimedIn && (!hasTimedOut || hasUploadedReport)" class="track-card accomplishment-card">
+            <div class="card-heading">
+              <div class="heading-left">
+                <IonIcon :icon="imageOutline" />
+                <h2>Daily Accomplishment Report</h2>
+              </div>
+              <span class="report-status" :class="{ complete: hasUploadedReport }">
+                {{ hasUploadedReport ? 'SUBMITTED' : 'REQUIRED' }}
+              </span>
+            </div>
+
+            <div v-if="hasUploadedReport" class="report-submitted">
+              <IonIcon :icon="checkmarkCircleOutline" />
+              <div>
+                <strong>Report successfully uploaded</strong>
+                <p>Your daily accomplishment is saved. You can Time Out after GPS verification.</p>
+              </div>
+            </div>
+            <template v-else>
+              <p class="report-description">
+                Capture a clear picture of your completed accomplishment report.
+                You must upload it before Time Out becomes available.
+              </p>
+              <div class="photo-area" :class="{ 'photo-locked': !canCaptureReport }">
+                <template v-if="reportPreview">
+                  <img :src="reportPreview" alt="Daily accomplishment report preview" class="report-preview" />
+                  <button type="button" class="remove-photo" :disabled="uploadingReport" @click="clearReportPhoto">
+                    <IonIcon :icon="trashOutline" /> Remove Report Photo
+                  </button>
+                </template>
+                <template v-else>
+                  <div class="photo-placeholder-icon">
+                    <IonIcon :icon="canCaptureReport ? cameraOutline : lockClosedOutline" />
+                  </div>
+                  <h3>{{ canCaptureReport ? 'Capture your daily report' : 'Report camera unavailable' }}</h3>
+                  <p>Take a readable photo of your written accomplishment report.</p>
+                </template>
+              </div>
+              <input
+                ref="reportInput"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                class="hidden-input"
+                @change="onReportPhotoSelected"
+              />
+              <button type="button" class="camera-button" :disabled="!canCaptureReport" @click="openReportCamera">
+                <IonIcon :icon="cameraOutline" />
+                {{ reportPhoto ? 'Retake Report Photo' : 'Capture Report Photo' }}
+              </button>
+              <button type="button" class="upload-report-button" :disabled="!canUploadReport" @click="uploadAccomplishment">
+                <IonIcon :icon="uploadingReport ? refreshOutline : checkmarkCircleOutline" :class="{ spinning: uploadingReport }" />
+                {{ uploadingReport ? 'Uploading Report...' : 'Submit Accomplishment Report' }}
+              </button>
+              <p class="photo-hint">JPG, PNG, or WEBP • Maximum 5 MB • Photo must be clear and readable</p>
+            </template>
+          </section>
+
           <!-- TODAY'S ATTENDANCE -->
           <section class="track-card">
             <div class="card-heading">
@@ -1666,9 +1858,12 @@ onUnmounted(() => {
                 }}
               </button>
 
-              <p>
-                Verify your GPS location
-                before recording your time-out.
+              <p v-if="!hasUploadedReport">
+                <IonIcon :icon="lockClosedOutline" />
+                Upload your Daily Accomplishment Report to unlock Time Out.
+              </p>
+              <p v-else>
+                Verify your GPS location before recording your time-out.
               </p>
             </div>
 
@@ -1729,7 +1924,8 @@ onUnmounted(() => {
               using your approved workplace
               geofence. Your location is
               checked again before Time In
-              or Time Out is submitted.
+              or Time Out is submitted. A daily accomplishment
+              report is required before Time Out.
             </p>
           </div>
 
@@ -2403,6 +2599,67 @@ button:not(:disabled):active {
   font-size: 10px;
   color: #92a398;
 }
+
+/* =====================================
+   DAILY ACCOMPLISHMENT REPORT
+===================================== */
+
+.accomplishment-card .card-heading { margin-bottom: 14px; }
+.report-description {
+  margin: 0 0 16px;
+  color: #7e9586;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.report-status {
+  flex-shrink: 0;
+  padding: 7px 9px;
+  border-radius: 30px;
+  background: #fff1d7;
+  color: #9a6c22;
+  font-size: 10px;
+  font-weight: 850;
+}
+.report-status.complete {
+  background: #ddf6e7;
+  color: #088157;
+}
+.report-preview {
+  width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+  border-radius: 12px;
+}
+.upload-report-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 49px;
+  margin-top: 12px;
+  padding: 13px;
+  border: none;
+  border-radius: 13px;
+  background: #0c8062;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.report-submitted {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 17px;
+  border: 1px solid #bce7cb;
+  border-radius: 14px;
+  background: #e7f7ec;
+  color: #0c8062;
+}
+.report-submitted > ion-icon { font-size: 24px; flex-shrink: 0; }
+.report-submitted strong { font-size: 13px; }
+.report-submitted p { font-size: 11px; line-height: 1.6; margin: 5px 0 0; color: #5b8a71; }
 
 /* =====================================
    ATTENDANCE
