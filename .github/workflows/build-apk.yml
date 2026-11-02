@@ -1,4 +1,5 @@
-name: Build Ionic Android APK
+
+name: Build InZone Android APK
 
 on:
   push:
@@ -7,109 +8,80 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-apk:
-
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
-    steps:
+    defaults:
+      run:
+        working-directory: frontend
 
-      # ----------------------------------------------------------
-      # 1. Get the source code
-      # ----------------------------------------------------------
-      - name: Checkout project
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      # ----------------------------------------------------------
-      # 2. Install Node.js
-      # ----------------------------------------------------------
-      - name: Set up Node.js
+      # 2. Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-
-      # ----------------------------------------------------------
-      # 3. Install project dependencies
-      # ----------------------------------------------------------
-      - name: Install npm dependencies
+      # 3. Install frontend dependencies
+      - name: Install dependencies
         run: npm ci
 
-
-      # ----------------------------------------------------------
-      # 5. Build Ionic/Vue application
-      # ----------------------------------------------------------
+      # 4. Build Vue/Ionic frontend
       - name: Build Ionic application
         run: npm run build
 
-
-      # ----------------------------------------------------------
-      # 6. Install Java 21
-      # ----------------------------------------------------------
-      - name: Set up Java 21
+      # 5. Setup Java
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
 
+      # 6. Setup Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
 
-      # ----------------------------------------------------------
-      # 7. Confirm Java version
-      # ----------------------------------------------------------
-      - name: Check Java version
+      # 7. Check native Android project
+      - name: Verify Android project
         run: |
-          java -version
-          javac -version
-          echo "JAVA_HOME=$JAVA_HOME"
+          test -f android/gradlew
+          test -f android/settings.gradle
 
-
-      # ----------------------------------------------------------
-      # 8. Synchronize Capacitor with Android
-      # ----------------------------------------------------------
+      # 8. Synchronize Capacitor
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-
-      # ----------------------------------------------------------
-      # 9. Give Gradle execution permission
-      # ----------------------------------------------------------
+      # 9. Allow Gradle execution
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-
-      # ----------------------------------------------------------
-      # 10. Check Gradle environment
-      # ----------------------------------------------------------
-      - name: Check Gradle version
-        working-directory: android
-        run: ./gradlew --version
-
-
-      # ----------------------------------------------------------
-      # 11. Build debug APK
-      # ----------------------------------------------------------
+      # 10. Build debug APK
       - name: Build Android APK
-        working-directory: android
-        run: ./gradlew assembleDebug
+        run: |
+          cd android
+          ./gradlew --no-daemon assembleDebug
 
-
-      # ----------------------------------------------------------
-      # 12. Rename the generated APK
-      # ----------------------------------------------------------
+      # 11. Rename APK
       - name: Rename APK
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk Inzone.apk
 
-
-      # ----------------------------------------------------------
-      # 13. Upload APK to GitHub Actions
-      # ----------------------------------------------------------
-      - name: Upload APK
+      # 12. Upload APK artifact
+      - name: Upload InZone APK
         uses: actions/upload-artifact@v4
         with:
-          name: Inzone
-          path: Inzone.apk
+          name: InZone-Android-APK
+          path: frontend/Inzone.apk
           if-no-files-found: error
           retention-days: 30
