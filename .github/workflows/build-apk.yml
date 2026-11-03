@@ -40,6 +40,8 @@ jobs:
       # 4. Build Vue/Ionic frontend
       - name: Build Ionic application
         run: npm run build
+        env:
+             VITE_API_URL: https://inzone-backend.onrender.com
 
       # 5. Setup Java
       - name: Setup Java 21
