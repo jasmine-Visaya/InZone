@@ -623,6 +623,14 @@ async function loadAttendance() {
 async function getCurrentCoordinates(): Promise<Coordinates> {
   if (Capacitor.isNativePlatform()) {
     try {
+      const perm = await Geolocation.checkPermissions();
+      if (perm.location !== 'granted') {
+        const req = await Geolocation.requestPermissions();
+        if (req.location !== 'granted') {
+          throw new Error('Location permission denied. Please allow location access.');
+        }
+      }
+
       const position = await Geolocation.getCurrentPosition({
         enableHighAccuracy: true,
         timeout: 15000,
