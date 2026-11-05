@@ -26,6 +26,8 @@ import {
   keyOutline,
   shieldOutline,
   arrowForwardOutline,
+  sparklesOutline,
+  analyticsOutline,
 } from 'ionicons/icons';
 
 import InZoneTopbar from '@/components/InZoneTopbar.vue';
@@ -112,6 +114,10 @@ const initials = computed(() => {
 const accountStatus = computed(() =>
   String(account.value?.status || 'UNKNOWN').toUpperCase()
 );
+
+const completeFields = computed(() => [account.value?.first_name, account.value?.last_name, account.value?.email].filter(v => Boolean(String(v || '').trim())).length);
+const completeness = computed(() => Math.round(completeFields.value / 3 * 100));
+const sourceLabel = computed(() => liveDetails.value ? 'Connected to backend' : 'Saved session details');
 
 const isEmailChanged = computed(() =>
   form.email.trim().toLowerCase() !==
@@ -401,7 +407,21 @@ onIonViewWillEnter(() => {
                 </span>
               </div>
             </div>
+            <div class="premium-profile-health">
+              <span class="premium-eyebrow"><IonIcon :icon="sparklesOutline" /> IDENTITY OVERVIEW</span>
+              <div class="premium-ring" :style="{ background:`conic-gradient(#77eab4 0 ${completeness}%, #ffffff35 ${completeness}% 100%)` }">
+                <div class="premium-ring-inside"><strong>{{ completeness }}%</strong><span>profile fields</span></div>
+              </div>
+              <div class="premium-health-legend"><span>{{ completeFields }} of 3 essential fields filled</span><span>{{ sourceLabel }}</span></div>
+              <button type="button" class="premium-action primary" :disabled="!canEdit || editing" @click="beginEdit"><IonIcon :icon="createOutline" /> Edit information <IonIcon :icon="arrowForwardOutline" /></button>
+            </div>
             <IonIcon class="hero-watermark" :icon="shieldCheckmarkOutline" aria-hidden="true" />
+          </section>
+
+          <section class="premium-account-facts" aria-label="Personal account summary">
+            <div class="premium-fact"><span class="premium-fact-icon mint"><IonIcon :icon="personOutline" /></span><div><small>Account type</small><strong>Administrator</strong><span>Role-based permissions</span></div></div>
+            <div class="premium-fact"><span class="premium-fact-icon blue"><IonIcon :icon="checkmarkCircleOutline" /></span><div><small>Account status</small><strong>{{ accountStatus === 'UNKNOWN' ? 'Not available' : accountStatus }}</strong><span>From your account record</span></div></div>
+            <div class="premium-fact"><span class="premium-fact-icon gold"><IonIcon :icon="refreshOutline" /></span><div><small>Details source</small><strong>{{ liveDetails ? 'Live backend' : 'Login session' }}</strong><span>Refresh to check latest data</span></div></div>
           </section>
 
           <div class="card-grid">
@@ -659,4 +679,61 @@ onIonViewWillEnter(() => {
 @media (max-width: 800px) { .card-grid, .security-grid { grid-template-columns: 1fr; } .hero-watermark { right: -15px; } }
 @media (max-width: 480px) { .page-header { align-items: flex-start; flex-direction: column; } .hero-profile { align-items: flex-start; gap: 15px; } .avatar { width: 65px; height: 65px; border-radius: 19px; font-size: 26px; } .hero-copy h2 { font-size: 23px; } .detail-row { flex-direction: column; gap: 8px; } .detail-row strong { text-align: left; } .info-card { padding: 19px; } .field-grid { grid-template-columns: 1fr; } .card-title { flex-wrap: wrap; } .edit-button { margin-left: 0; } .security-card { padding: 18px; gap: 12px; } .security-icon { width: 39px; height: 39px; } }
 @media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
+
+/* PREMIUM INZONE ADMIN WORKSPACE - responsive visual layer */
+
+/* Premium component system: visual upgrades only; existing API logic remains intact. */
+.premium-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.8fr);align-items:center;gap:24px;min-height:280px;margin:0 0 21px;padding:clamp(25px,3.6vw,40px);border:1px solid #ffffff24;border-radius:26px;background:linear-gradient(116deg,#086f56 0%,#064637 63%,#092e2b 100%);color:#fff;box-shadow:0 24px 52px rgba(8,72,52,.17)}
+.premium-hero:before{content:"";position:absolute;z-index:-1;inset:-70% -14% auto auto;width:440px;height:440px;border-radius:50%;border:1px solid #baffdc25;box-shadow:0 0 0 53px #ddffe609,0 0 0 105px #ddffe606;pointer-events:none}
+.premium-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10px;font-weight:850;letter-spacing:1.45px;color:#a0f6cf}.premium-eyebrow ion-icon{font-size:17px}
+.premium-hero h2{color:#fff!important;margin:18px 0 12px;font-size:clamp(28px,3.6vw,43px);letter-spacing:-1.25px;line-height:1.12;font-weight:850}
+.premium-hero h2 em{font-style:normal;color:#78edb4}
+.premium-hero p{max-width:570px;margin:0;color:#cbe8dc;font-size:12px;line-height:1.8}
+.premium-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:23px}
+.premium-action{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:42px;padding:11px 16px;border:1px solid #ffffff45;border-radius:12px;background:#ffffff1d;color:#fff;font-size:11px;font-weight:850;cursor:pointer;transition:transform .2s,background .2s}
+.premium-action.primary{background:#f3fff9;color:#086b50;border-color:#f3fff9}
+.premium-action:hover{transform:translateY(-2px);background:#ffffff36}.premium-action.primary:hover{background:white}
+.premium-visual{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:205px;padding:18px 20px;border:1px solid #ffffff32;border-radius:22px;background:linear-gradient(155deg,#ffffff20,#ffffff0b);backdrop-filter:blur(8px)}
+.premium-ring{display:grid;place-items:center;width:156px;height:156px;padding:12px;border-radius:50%;box-shadow:0 0 36px #84ffc121;transition:background .25s}
+.premium-ring-inside{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;background:#084c3d;text-align:center;box-shadow:inset 0 8px 22px #072e2d25}
+.premium-ring strong{font-size:33px;letter-spacing:-1px;line-height:1.1;color:#fff}.premium-ring span{margin-top:4px;font-size:10px;color:#bfe9d5;font-weight:650}
+.premium-visual-bottom{display:flex;justify-content:space-between;gap:16px;width:100%;font-size:11px;color:#c5e8d6}.premium-visual-bottom strong{color:white;font-size:12px}
+.premium-caption{margin:0!important;font-size:10px!important;color:#bfe8d3!important;text-align:center}
+.premium-strip{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0 23px}
+.premium-pill{display:inline-flex;gap:8px;align-items:center;justify-content:center;min-height:36px;border:1px solid #d9eade;border-radius:100px;background:#fff;color:#658776;padding:9px 13px;font-size:11px;font-weight:800;cursor:pointer;transition:background .2s,border-color .2s,transform .2s}
+.premium-pill:hover{border-color:#9fddba;transform:translateY(-1px)}.premium-pill.active{border-color:#087957;background:#e0f6e8;color:#087957}
+.premium-pill strong{display:inline-grid;place-items:center;min-width:20px;min-height:20px;padding:0 5px;border-radius:20px;background:#e8f1ec;font-size:10px}.premium-pill.active strong{background:#baf0ce}
+.premium-insight{border:1px solid #dbeee2;border-radius:20px;background:#fff;box-shadow:0 13px 28px #10412d0a;padding:19px 21px;margin:0 0 24px}
+.premium-insight-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
+.premium-insight-head strong{color:#194d39;font-size:13px}.premium-insight-head small{color:#7e9a89;font-size:10px}
+.premium-stack{display:flex;width:100%;height:11px;overflow:hidden;border-radius:40px;background:#edf5ef}
+.premium-stack>span{min-width:0;transition:width .25s;display:block;height:100%}
+.premium-legend{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;color:#738e7c;font-size:10px}
+.premium-legend>span{display:inline-flex;align-items:center;gap:7px}
+.premium-legend i{display:inline-block;width:8px;height:8px;border-radius:50%}
+.premium-grid-view{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px!important}
+.premium-grid-view>article{align-items:flex-start!important;min-width:0!important;flex-wrap:wrap!important;min-height:177px!important;border-radius:17px!important;margin:0!important}
+.premium-mode-controls{display:flex;gap:6px;align-items:center;border:1px solid #dcebe1;border-radius:11px;padding:4px;background:#f5faf6}
+.premium-mode-controls button{border:0;cursor:pointer;display:grid;place-items:center;min-width:34px;height:32px;border-radius:8px;background:transparent;color:#779385}
+.premium-mode-controls button.active{background:#fff;color:#078258;box-shadow:0 3px 9px #275c4016}
+.premium-mode-controls button ion-icon{font-size:17px}
+.premium-mini-label{display:inline-flex;align-items:center;gap:6px;font-weight:800;letter-spacing:1px;font-size:10px;color:#0b855e}
+@media(max-width:850px){.premium-hero{grid-template-columns:1fr}.premium-visual{flex-direction:row;min-height:0}.premium-ring{width:124px;height:124px;flex-shrink:0}.premium-ring strong{font-size:27px}.premium-visual-bottom{flex:1;flex-direction:column;gap:8px}}
+@media(max-width:640px){.premium-hero{padding:25px 21px;border-radius:20px}.premium-hero h2{font-size:29px}.premium-grid-view{grid-template-columns:1fr!important}.premium-visual{flex-direction:column}.premium-visual-bottom{flex-direction:row}.premium-insight{padding:16px}.premium-legend{gap:10px}.premium-actions .premium-action{flex:1}}
+@media(prefers-reduced-motion:reduce){.premium-action,.premium-pill,.premium-stack>span{transition:none}}
+
+.account-content{--background:#eff7f2}.account-container{max-width:1320px}
+.profile-hero{display:flex;justify-content:space-between;align-items:center;gap:25px;min-height:300px;background:linear-gradient(115deg,#086f56,#064637 65%,#082f2a)!important;box-shadow:0 23px 50px #0c503b27!important}
+.hero-profile{max-width:calc(100% - 310px)}.premium-profile-health{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:10px;width:286px;max-width:100%;padding:15px;border:1px solid #ffffff3e;border-radius:20px;background:#ffffff1c;backdrop-filter:blur(7px)}
+.premium-profile-health .premium-ring{width:110px;height:110px;padding:9px}.premium-profile-health .premium-ring strong{font-size:25px}.premium-profile-health .premium-ring span{font-size:9px}
+.premium-health-legend{display:flex;flex-direction:column;align-items:center;gap:5px;color:#caecdb;font-size:10px;text-align:center}.premium-profile-health .premium-action{width:100%;min-height:35px;padding:9px 12px;font-size:10px;margin-top:4px}.premium-profile-health .premium-action:disabled{opacity:.5;cursor:not-allowed}
+.premium-account-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:22px 0}
+.premium-fact{display:flex;align-items:center;gap:13px;padding:19px;background:white;border:1px solid #dcece1;border-radius:18px;box-shadow:0 10px 28px #12492f0b}
+.premium-fact-icon{display:grid;place-items:center;flex-shrink:0;width:45px;height:45px;border-radius:13px;font-size:22px}.premium-fact-icon.mint{background:#e1f7ea;color:#0b9871}.premium-fact-icon.blue{background:#e7f1ff;color:#5584c8}.premium-fact-icon.gold{background:#fff3dc;color:#bd8b37}
+.premium-fact div{display:flex;flex-direction:column;min-width:0}.premium-fact small{color:#839c8b;font-size:10px;font-weight:750}.premium-fact strong{color:#194934;font-size:15px;margin:5px 0;overflow-wrap:anywhere}.premium-fact div>span{color:#8b9f90;font-size:10px}
+.info-card{border:1px solid #dcece1!important;box-shadow:0 15px 30px #12492f0b!important;border-radius:22px!important}
+.security-card{border:1px solid #c7e7d5!important;background:linear-gradient(115deg,#e3f6e9,#edf9f1)!important;border-radius:22px!important}
+@media(max-width:900px){.profile-hero{flex-direction:column;align-items:stretch}.hero-profile{max-width:100%}.premium-profile-health{width:100%;flex-direction:row;justify-content:space-between;flex-wrap:wrap}.premium-health-legend{align-items:flex-start;text-align:left}.premium-profile-health .premium-action{width:auto}.premium-account-facts{grid-template-columns:1fr}}
+@media(max-width:550px){.premium-profile-health{flex-direction:column}.premium-health-legend{align-items:center;text-align:center}.premium-profile-health .premium-action{width:100%}.premium-account-facts{gap:10px}.premium-fact{padding:14px}}
+
 </style>

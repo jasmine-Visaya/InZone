@@ -65,6 +65,11 @@ import {
 
   saveOutline,
 
+  sparklesOutline,
+  gridOutline,
+  listOutline,
+  arrowForwardOutline,
+  trendingUpOutline,
 } from 'ionicons/icons';
 
 type StudentStatus =
@@ -160,9 +165,15 @@ const summary = ref<StudentSummary>({
 
 });
 
+const readyRate = computed(() => summary.value.total ? Math.round(summary.value.approved / summary.value.total * 100) : 0);
+const geoConfigured = computed(() => students.value.filter(hasCoordinates).length);
+const partnerCompanies = computed(() => new Set(students.value.map(s => (s.company_name || '').trim().toLowerCase()).filter(Boolean)).size);
+const studentPercent = (count: number) => summary.value.total ? (count / summary.value.total * 100).toFixed(1) + '%' : '0%';
+
 const search = ref('');
 
 const statusFilter = ref('ALL');
+const viewMode = ref<'list' | 'grid'>('list');
 
 const selectedStudent = ref<Student | null>(null);
 const mapStudent = ref<Student | null>(null);
@@ -890,6 +901,47 @@ onIonViewWillEnter(() => {
 
         </header>
 
+        <section class="premium-hero" aria-label="OJT student readiness">
+          <div>
+            <span class="premium-eyebrow"><IonIcon :icon="sparklesOutline" /> OJT STUDENT INTELLIGENCE</span>
+            <h2>From registration<br/><em>to workplace ready.</em></h2>
+            <p>Manage every student's OJT journey, spot records that need attention, and inspect workplace locations directly inside InZone.</p>
+            <div class="premium-actions">
+              <button type="button" class="premium-action primary" @click="statusFilter='PENDING';search=''">
+                <IonIcon :icon="timeOutline" /> Review pending <strong>{{ summary.pending }}</strong> <IonIcon :icon="arrowForwardOutline" />
+              </button>
+              <button type="button" class="premium-action" @click="statusFilter='ALL';search=''">
+                <IonIcon :icon="peopleOutline" /> All students
+              </button>
+            </div>
+          </div>
+          <div class="premium-visual">
+            <div class="premium-ring" :style="{background:`conic-gradient(#7df2bd 0 ${readyRate}%, #ffffff30 ${readyRate}% 100%)`}">
+              <div class="premium-ring-inside"><strong>{{ loading ? '—' : `${readyRate}%` }}</strong><span>OJT approved</span></div>
+            </div>
+            <div class="premium-visual-bottom">
+              <span><strong>{{ geoConfigured }}</strong> geofences set</span>
+              <span><strong>{{ partnerCompanies }}</strong> workplaces listed</span>
+            </div>
+            <p class="premium-caption">Approved OJT profiles / total student accounts</p>
+          </div>
+        </section>
+        <section class="premium-insight" aria-label="OJT readiness distribution">
+          <div class="premium-insight-head"><strong>OJT readiness pipeline</strong><small>Latest submitted profile per student</small></div>
+          <div class="premium-stack" aria-hidden="true">
+            <span :style="{width:studentPercent(summary.approved), background:'#11a87b'}" />
+            <span :style="{width:studentPercent(summary.pending), background:'#e9b552'}" />
+            <span :style="{width:studentPercent(summary.rejected), background:'#e17876'}" />
+            <span :style="{width:studentPercent(summary.not_submitted), background:'#afbfaf'}" />
+          </div>
+          <div class="premium-legend">
+            <span><i style="background:#11a87b"/>Approved {{ summary.approved }}</span>
+            <span><i style="background:#e9b552"/>Pending {{ summary.pending }}</span>
+            <span><i style="background:#e17876"/>Rejected {{ summary.rejected }}</span>
+            <span><i style="background:#afbfaf"/>Not submitted {{ summary.not_submitted }}</span>
+          </div>
+        </section>
+
         <!-- SUMMARY -->
 
         <section class="summary-grid">
@@ -1010,6 +1062,17 @@ onIonViewWillEnter(() => {
 
           </div>
 
+          <div class="premium-strip" aria-label="Quick OJT status filters">
+            <button type="button" class="premium-pill" :class="{active:statusFilter==='ALL'}" @click="statusFilter='ALL'">All <strong>{{ summary.total }}</strong></button>
+            <button type="button" class="premium-pill" :class="{active:statusFilter==='APPROVED'}" @click="statusFilter='APPROVED'">Approved <strong>{{ summary.approved }}</strong></button>
+            <button type="button" class="premium-pill" :class="{active:statusFilter==='PENDING'}" @click="statusFilter='PENDING'">Pending <strong>{{ summary.pending }}</strong></button>
+            <button type="button" class="premium-pill" :class="{active:statusFilter==='REJECTED'}" @click="statusFilter='REJECTED'">Rejected <strong>{{ summary.rejected }}</strong></button>
+            <button type="button" class="premium-pill" :class="{active:statusFilter==='NOT_SUBMITTED'}" @click="statusFilter='NOT_SUBMITTED'">No profile <strong>{{ summary.not_submitted }}</strong></button>
+            <div class="premium-mode-controls" role="group" aria-label="Student directory layout">
+              <button type="button" :class="{active:viewMode==='list'}" :aria-pressed="viewMode==='list'" aria-label="List view" @click="viewMode='list'"><IonIcon :icon="listOutline" /></button>
+              <button type="button" :class="{active:viewMode==='grid'}" :aria-pressed="viewMode==='grid'" aria-label="Grid view" @click="viewMode='grid'"><IonIcon :icon="gridOutline" /></button>
+            </div>
+          </div>
           <!-- SEARCH AND FILTER -->
 
           <div class="toolbar">
@@ -1122,7 +1185,7 @@ onIonViewWillEnter(() => {
 
           <!-- STUDENT CARDS -->
 
-          <div v-else class="student-list">
+          <div v-else class="student-list" :class="{'premium-grid-view':viewMode==='grid'}">
 
             <article
 
@@ -2881,5 +2944,54 @@ button:disabled {
   background: #fff; color: #173d30; border: 1px solid #d8e8dc; border-radius: 10px; font: inherit; }
 
 .review-reason-label textarea:focus { outline: 2px solid #0c996a; outline-offset: 1px; }
+
+
+/* PREMIUM INZONE ADMIN WORKSPACE - responsive visual layer */
+
+/* Premium component system: visual upgrades only; existing API logic remains intact. */
+.premium-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.8fr);align-items:center;gap:24px;min-height:280px;margin:0 0 21px;padding:clamp(25px,3.6vw,40px);border:1px solid #ffffff24;border-radius:26px;background:linear-gradient(116deg,#086f56 0%,#064637 63%,#092e2b 100%);color:#fff;box-shadow:0 24px 52px rgba(8,72,52,.17)}
+.premium-hero:before{content:"";position:absolute;z-index:-1;inset:-70% -14% auto auto;width:440px;height:440px;border-radius:50%;border:1px solid #baffdc25;box-shadow:0 0 0 53px #ddffe609,0 0 0 105px #ddffe606;pointer-events:none}
+.premium-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:10px;font-weight:850;letter-spacing:1.45px;color:#a0f6cf}.premium-eyebrow ion-icon{font-size:17px}
+.premium-hero h2{color:#fff!important;margin:18px 0 12px;font-size:clamp(28px,3.6vw,43px);letter-spacing:-1.25px;line-height:1.12;font-weight:850}
+.premium-hero h2 em{font-style:normal;color:#78edb4}
+.premium-hero p{max-width:570px;margin:0;color:#cbe8dc;font-size:12px;line-height:1.8}
+.premium-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:23px}
+.premium-action{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:42px;padding:11px 16px;border:1px solid #ffffff45;border-radius:12px;background:#ffffff1d;color:#fff;font-size:11px;font-weight:850;cursor:pointer;transition:transform .2s,background .2s}
+.premium-action.primary{background:#f3fff9;color:#086b50;border-color:#f3fff9}
+.premium-action:hover{transform:translateY(-2px);background:#ffffff36}.premium-action.primary:hover{background:white}
+.premium-visual{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:205px;padding:18px 20px;border:1px solid #ffffff32;border-radius:22px;background:linear-gradient(155deg,#ffffff20,#ffffff0b);backdrop-filter:blur(8px)}
+.premium-ring{display:grid;place-items:center;width:156px;height:156px;padding:12px;border-radius:50%;box-shadow:0 0 36px #84ffc121;transition:background .25s}
+.premium-ring-inside{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;background:#084c3d;text-align:center;box-shadow:inset 0 8px 22px #072e2d25}
+.premium-ring strong{font-size:33px;letter-spacing:-1px;line-height:1.1;color:#fff}.premium-ring span{margin-top:4px;font-size:10px;color:#bfe9d5;font-weight:650}
+.premium-visual-bottom{display:flex;justify-content:space-between;gap:16px;width:100%;font-size:11px;color:#c5e8d6}.premium-visual-bottom strong{color:white;font-size:12px}
+.premium-caption{margin:0!important;font-size:10px!important;color:#bfe8d3!important;text-align:center}
+.premium-strip{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0 23px}
+.premium-pill{display:inline-flex;gap:8px;align-items:center;justify-content:center;min-height:36px;border:1px solid #d9eade;border-radius:100px;background:#fff;color:#658776;padding:9px 13px;font-size:11px;font-weight:800;cursor:pointer;transition:background .2s,border-color .2s,transform .2s}
+.premium-pill:hover{border-color:#9fddba;transform:translateY(-1px)}.premium-pill.active{border-color:#087957;background:#e0f6e8;color:#087957}
+.premium-pill strong{display:inline-grid;place-items:center;min-width:20px;min-height:20px;padding:0 5px;border-radius:20px;background:#e8f1ec;font-size:10px}.premium-pill.active strong{background:#baf0ce}
+.premium-insight{border:1px solid #dbeee2;border-radius:20px;background:#fff;box-shadow:0 13px 28px #10412d0a;padding:19px 21px;margin:0 0 24px}
+.premium-insight-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
+.premium-insight-head strong{color:#194d39;font-size:13px}.premium-insight-head small{color:#7e9a89;font-size:10px}
+.premium-stack{display:flex;width:100%;height:11px;overflow:hidden;border-radius:40px;background:#edf5ef}
+.premium-stack>span{min-width:0;transition:width .25s;display:block;height:100%}
+.premium-legend{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;color:#738e7c;font-size:10px}
+.premium-legend>span{display:inline-flex;align-items:center;gap:7px}
+.premium-legend i{display:inline-block;width:8px;height:8px;border-radius:50%}
+.premium-grid-view{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px!important}
+.premium-grid-view>article{align-items:flex-start!important;min-width:0!important;flex-wrap:wrap!important;min-height:177px!important;border-radius:17px!important;margin:0!important}
+.premium-mode-controls{display:flex;gap:6px;align-items:center;border:1px solid #dcebe1;border-radius:11px;padding:4px;background:#f5faf6}
+.premium-mode-controls button{border:0;cursor:pointer;display:grid;place-items:center;min-width:34px;height:32px;border-radius:8px;background:transparent;color:#779385}
+.premium-mode-controls button.active{background:#fff;color:#078258;box-shadow:0 3px 9px #275c4016}
+.premium-mode-controls button ion-icon{font-size:17px}
+.premium-mini-label{display:inline-flex;align-items:center;gap:6px;font-weight:800;letter-spacing:1px;font-size:10px;color:#0b855e}
+@media(max-width:850px){.premium-hero{grid-template-columns:1fr}.premium-visual{flex-direction:row;min-height:0}.premium-ring{width:124px;height:124px;flex-shrink:0}.premium-ring strong{font-size:27px}.premium-visual-bottom{flex:1;flex-direction:column;gap:8px}}
+@media(max-width:640px){.premium-hero{padding:25px 21px;border-radius:20px}.premium-hero h2{font-size:29px}.premium-grid-view{grid-template-columns:1fr!important}.premium-visual{flex-direction:column}.premium-visual-bottom{flex-direction:row}.premium-insight{padding:16px}.premium-legend{gap:10px}.premium-actions .premium-action{flex:1}}
+@media(prefers-reduced-motion:reduce){.premium-action,.premium-pill,.premium-stack>span{transition:none}}
+
+.students-content{--background:#eff7f2}.students-container{max-width:1320px}.page-header{padding-bottom:4px}
+.summary-card{position:relative;overflow:hidden;border:1px solid #dceee2!important;box-shadow:0 14px 30px #184e340b!important;transition:transform .2s}.summary-card:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#0c9b70,#80ddad)}.summary-card:hover{transform:translateY(-3px)}
+.students-panel{border:1px solid #dcebe1!important;box-shadow:0 20px 50px #12412a0c!important;border-radius:23px!important}
+.student-row{transition:transform .15s,box-shadow .15s!important}.student-row:hover{transform:translateY(-2px);box-shadow:0 12px 27px #14543812!important}
+@media(max-width:640px){.summary-card:hover,.student-row:hover{transform:none}}
 
 </style>
