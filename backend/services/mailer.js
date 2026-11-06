@@ -1,167 +1,174 @@
 
-const nodemailer = require('nodemailer');
-
 /* =========================================
-   SMTP TRANSPORT (FALLBACK)
+   INZONE EMAIL SERVICE
+   BREVO HTTPS API - RENDER COMPATIBLE
 ========================================= */
 
-function transport() {
-  const port = Number(process.env.SMTP_PORT || 465);
-
-  if (
-    !process.env.SMTP_HOST ||
-    !process.env.SMTP_USER ||
-    !process.env.SMTP_PASS
-  ) {
-    throw new Error(
-      'SMTP_HOST, SMTP_USER and SMTP_PASS are required.'
-    );
-  }
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: port === 465,
-    requireTLS: port !== 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-}
-
 /* =========================================
-   RESEND HTTPS EMAIL API
-   PRIMARY SENDER FOR RENDER
+   BREVO EMAIL SENDER
 ========================================= */
 
-async function sendEmailViaResend({
+async function sendEmailViaBrevo({
   email,
   subject,
   text,
   html,
 }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM;
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  const senderName =
+    process.env.BREVO_SENDER_NAME || "InZone";
 
-  if (!apiKey || !from) {
+  if (!apiKey || !senderEmail) {
     throw new Error(
-      'RESEND_API_KEY and RESEND_FROM are required.'
+      "BREVO_API_KEY and BREVO_SENDER_EMAIL are required."
     );
   }
 
   const response = await fetch(
-    'https://api.resend.com/emails',
+    "https://api.brevo.com/v3/smtp/email",
     {
-      method: 'POST',
+      method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+        "accept": "application/json",
+        "api-key": apiKey,
+        "content-type": "application/json",
       },
       body: JSON.stringify({
-        from,
-        to: [email],
-        subject,
-        text,
-        html,
+        sender: {
+          name: senderName,
+          email: senderEmail,
+        },
+        to: [
+          {
+            email: email,
+          },
+        ],
+        subject: subject,
+        htmlContent: html,
       }),
       signal: AbortSignal.timeout(15000),
     }
   );
 
-  const result = await response.json().catch(() => ({}));
+  const result = await response
+    .json()
+    .catch(() => ({}));
 
   if (!response.ok) {
+    const message =
+      result.message ||
+      result.error ||
+      "Unknown Brevo API error";
+
+    console.error(
+      "[InZone] Brevo API error:",
+      response.status,
+      message
+    );
+
     throw new Error(
-      `Resend email failed (${response.status}): ${
-        result.message || 'Unknown error'
-      }`
+      `Brevo email failed (${response.status}): ${message}`
     );
   }
+
+  console.log(
+    "[InZone] Email accepted by Brevo:",
+    result.messageId || "No message ID"
+  );
 
   return result;
 }
 
 /* =========================================
    SEND OTP EMAIL
-   EMAIL VERIFICATION / PASSWORD RESET
+   REGISTRATION / PASSWORD RESET
 ========================================= */
 
 async function sendOtpEmail(email, code, purpose) {
-  const isVerify = purpose === 'verify_email';
+  const isVerify = purpose === "verify_email";
 
   const subject = isVerify
-    ? 'InZone - Verify your email'
-    : 'InZone - Reset your password';
+    ? "InZone - Verify your email"
+    : "InZone - Reset your password";
 
   const action = isVerify
-    ? 'complete your InZone registration'
-    : 'reset your InZone password';
+    ? "complete your InZone registration"
+    : "reset your InZone password";
 
   const text =
     `Use this InZone verification code to ${action}: ${code}. ` +
-    'It expires in 10 minutes. ' +
-    'If you did not request this, ignore the email.';
+    "It expires in 10 minutes. " +
+    "If you did not request this, ignore the email.";
 
   const html = `
     <div style="
-      font-family:Arial,sans-serif;
-      max-width:480px;
-      margin:auto;
-      padding:28px;
-      color:#173d32;
+      font-family: Arial, sans-serif;
+      max-width: 480px;
+      margin: auto;
+      padding: 28px;
+      color: #173d32;
     ">
-      <h2 style="color:#087957">InZone</h2>
 
-      <p>Use this code to ${action}:</p>
+      <h2 style="
+        color: #087957;
+        font-size: 26px;
+        margin-bottom: 20px;
+      ">
+        InZone
+      </h2>
+
+      <p style="
+        font-size: 15px;
+        line-height: 1.6;
+      ">
+        Use this code to ${action}:
+      </p>
 
       <div style="
-        background:#eff8f3;
-        padding:20px;
-        border-radius:12px;
-        text-align:center;
-        margin:20px 0;
+        background: #eff8f3;
+        border: 1px solid #d3ebdd;
+        border-radius: 12px;
+        padding: 22px;
+        text-align: center;
+        margin: 20px 0;
       ">
+
         <p style="
-          font-size:34px;
-          letter-spacing:9px;
-          font-weight:800;
-          color:#087957;
-          margin:0;
-        ">${code}</p>
+          font-size: 34px;
+          letter-spacing: 9px;
+          font-weight: 800;
+          color: #087957;
+          margin: 0;
+        ">
+          ${code}
+        </p>
+
       </div>
 
-      <p>
-        Valid for <strong>10 minutes</strong>.
+      <p style="
+        font-size: 14px;
+        line-height: 1.6;
+      ">
+        Valid for
+        <strong>10 minutes</strong>.
         Do not share this code.
       </p>
 
       <p style="
-        color:#778d83;
-        font-size:12px;
+        color: #778d83;
+        font-size: 12px;
+        margin-top: 24px;
       ">
         If you didn't request this,
         you can ignore this email.
       </p>
+
     </div>
   `;
 
-  /* PRIMARY: RESEND HTTPS API */
-
-  if (process.env.RESEND_API_KEY) {
-    return await sendEmailViaResend({
-      email,
-      subject,
-      text,
-      html,
-    });
-  }
-
-  /* FALLBACK: SMTP */
-
-  return await transport().sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: email,
+  return await sendEmailViaBrevo({
+    email,
     subject,
     text,
     html,
