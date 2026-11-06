@@ -137,8 +137,8 @@ const photoPreview = ref('');
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const reportInput = ref<HTMLInputElement | null>(null);
-const reportPhoto = ref<File | null>(null);
-const reportPreview = ref('');
+const reportPhotos = ref<{ file: File; preview: string }[]>([]);
+const MAX_REPORT_PHOTOS = 10;
 const uploadingReport = ref(false);
 
 const todayAttendance = ref<AttendanceRecord | null>(null);
@@ -228,12 +228,14 @@ const canCaptureReport = computed(() =>
   hasTimedIn.value &&
   !hasTimedOut.value &&
   !hasUploadedReport.value &&
+  reportPhotos.value.length < MAX_REPORT_PHOTOS &&
   !submitting.value &&
   !uploadingReport.value
 );
 
 const canUploadReport = computed(() =>
-  canCaptureReport.value && reportPhoto.value !== null
+  isApproved.value && hasTimedIn.value && !hasTimedOut.value && !hasUploadedReport.value &&
+  !submitting.value && !uploadingReport.value && reportPhotos.value.length > 0
 );
 
 const canTimeOut = computed(() => {
@@ -390,12 +392,24 @@ function clearPhoto() {
 }
 
 function clearReportPhoto() {
-  reportPhoto.value = null;
-  if (reportPreview.value) {
-    URL.revokeObjectURL(reportPreview.value);
-    reportPreview.value = '';
-  }
+  for (const item of reportPhotos.value) URL.revokeObjectURL(item.preview);
+  reportPhotos.value = [];
   if (reportInput.value) reportInput.value.value = '';
+}
+
+function removeReportPhoto(index: number) {
+  const item = reportPhotos.value[index];
+  if (!item) return;
+  URL.revokeObjectURL(item.preview);
+  reportPhotos.value.splice(index, 1);
+}
+
+function addReportPhoto(file: File) {
+  validateSelectedPhoto(file);
+  if (reportPhotos.value.length >= MAX_REPORT_PHOTOS) {
+    throw new Error(`Maximum ${MAX_REPORT_PHOTOS} photos allowed.`);
+  }
+  reportPhotos.value.push({ file, preview: URL.createObjectURL(file) });
 }
 
 function resetVerification() {
@@ -845,9 +859,7 @@ async function openReportCamera() {
   try {
     const file = await takeDevicePhoto('accomplishment');
     if (!canCaptureReport.value) return;
-    clearReportPhoto();
-    reportPhoto.value = file;
-    reportPreview.value = URL.createObjectURL(file);
+    addReportPhoto(file);
   } catch (cause) {
     if (!isCameraCancellation(cause)) {
       error.value = cause instanceof Error ? cause.message : 'Could not capture report.';
@@ -859,32 +871,26 @@ function onReportPhotoSelected(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
-  if (!canCaptureReport.value) {
-    clearReportPhoto();
-    return;
-  }
+  if (!canCaptureReport.value) return;
   try {
-    validateSelectedPhoto(file);
-    clearReportPhoto();
-    reportPhoto.value = file;
-    reportPreview.value = URL.createObjectURL(file);
+    addReportPhoto(file);
   } catch (cause) {
-    clearReportPhoto();
     error.value = cause instanceof Error ? cause.message : 'Invalid report photo.';
+  } finally {
+    input.value = '';
   }
 }
 
 async function uploadAccomplishment() {
   const id = todayAttendance.value?.id;
-  const selectedPhoto = reportPhoto.value;
-  if (!canUploadReport.value || !id || !selectedPhoto) return;
+  if (!canUploadReport.value || !id) return;
 
   uploadingReport.value = true;
   error.value = '';
   success.value = '';
   try {
     const formData = new FormData();
-    formData.append('photo', selectedPhoto);
+    for (const item of reportPhotos.value) formData.append('photos', item.file);
     await apiRequest(`/api/attendance/accomplishment/${encodeURIComponent(String(id))}`, {
       method: 'POST',
       body: formData,
@@ -893,7 +899,7 @@ async function uploadAccomplishment() {
     if (!hasUploadedReport.value) {
       throw new Error('Upload was received but its saved status could not be verified. Refresh attendance.');
     }
-    success.value = 'Daily accomplishment report uploaded! Verify GPS to enable Time Out.';
+    success.value = 'Daily accomplishment photos uploaded! Verify GPS to enable Time Out.';
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Report upload failed.';
   } finally {
@@ -1738,19 +1744,24 @@ onUnmounted(() => {
                 Capture a clear picture of your completed accomplishment report.
                 You must upload it before Time Out becomes available.
               </p>
-              <div class="photo-area" :class="{ 'photo-locked': !canCaptureReport }">
-                <template v-if="reportPreview">
-                  <img :src="reportPreview" alt="Daily accomplishment report preview" class="report-preview" />
-                  <button type="button" class="remove-photo" :disabled="uploadingReport" @click="clearReportPhoto">
-                    <IonIcon :icon="trashOutline" /> Remove Report Photo
-                  </button>
+              <div class="photo-area" :class="{ 'photo-locked': !canCaptureReport && !reportPhotos.length }">
+                <template v-if="reportPhotos.length">
+                  <p>{{ reportPhotos.length }} / {{ MAX_REPORT_PHOTOS }} photos selected</p>
+                  <div class="report-photo-grid">
+                    <div v-for="(item, index) in reportPhotos" :key="item.preview" class="report-photo-item">
+                      <img :src="item.preview" :alt="`Accomplishment photo ${index + 1}`" class="report-preview" />
+                      <button type="button" class="remove-photo" :disabled="uploadingReport" @click="removeReportPhoto(index)">
+                        <IonIcon :icon="trashOutline" /> Remove
+                      </button>
+                    </div>
+                  </div>
                 </template>
                 <template v-else>
                   <div class="photo-placeholder-icon">
                     <IonIcon :icon="canCaptureReport ? cameraOutline : lockClosedOutline" />
                   </div>
                   <h3>{{ canCaptureReport ? 'Capture your daily report' : 'Report camera unavailable' }}</h3>
-                  <p>Take a readable photo of your written accomplishment report.</p>
+                  <p>Take clear photos of your report. You can add up to 10 photos.</p>
                 </template>
               </div>
               <input
@@ -1763,13 +1774,13 @@ onUnmounted(() => {
               />
               <button type="button" class="camera-button" :disabled="!canCaptureReport" @click="openReportCamera">
                 <IonIcon :icon="cameraOutline" />
-                {{ reportPhoto ? 'Retake Report Photo' : 'Capture Report Photo' }}
+                {{ reportPhotos.length ? 'Take Another Photo' : 'Capture Report Photo' }}
               </button>
               <button type="button" class="upload-report-button" :disabled="!canUploadReport" @click="uploadAccomplishment">
                 <IonIcon :icon="uploadingReport ? refreshOutline : checkmarkCircleOutline" :class="{ spinning: uploadingReport }" />
-                {{ uploadingReport ? 'Uploading Report...' : 'Submit Accomplishment Report' }}
+                {{ uploadingReport ? 'Uploading Report...' : `Submit ${reportPhotos.length} Photo(s)` }}
               </button>
-              <p class="photo-hint">JPG, PNG, or WEBP • Maximum 5 MB • Photo must be clear and readable</p>
+              <p class="photo-hint">JPG, PNG, or WEBP • Up to 10 photos • Maximum 5 MB each</p>
             </template>
           </section>
 
@@ -2908,4 +2919,8 @@ button:not(:disabled):active {
       calc(140px + env(safe-area-inset-bottom, 0px));
   }
 }
+.report-photo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; width: 100%; margin-top: 12px; }
+.report-photo-item { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.report-photo-item img { width: 100%; height: 160px; object-fit: contain; border-radius: 12px; background: #f1f5f2; }
+.report-photo-item button { align-self: center; }
 </style>

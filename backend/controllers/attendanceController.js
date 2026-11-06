@@ -415,11 +415,33 @@ const uploadAccomplishmentReport = async (req, res) => {
         .status(approval.statusCode)
         .json(approval.response);
     }
+    ``
+    const photos = req.files || [];
 
-    // Validate uploaded report image
-    const imageError = validateAccomplishmentImage(
-      req.file
-    );
+    if (photos.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one report photo is required.",
+      });
+    }
+
+    if (photos.length > 10) {
+      return res.status(400).json({
+        success: false,
+        message: "Maximum of 10 photos only.",
+      });
+    }
+
+    for (const photo of photos) {
+      const imageError = validateAccomplishmentImage(photo);
+
+      if (imageError) {
+        return res.status(400).json({
+          success: false,
+          message: imageError,
+        });
+      }
+    }
 
     if (imageError) {
       return res.status(400).json({

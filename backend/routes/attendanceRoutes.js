@@ -1,4 +1,3 @@
-
 const express = require("express");
 const authenticateToken = require("../middleware/authMiddleware");
 
@@ -12,6 +11,7 @@ const {
 } = require("../controllers/attendanceController");
 
 const uploadPhoto = require("../middleware/uploadMiddleware");
+const uploadAccomplishmentPhotos = require("../middleware/uploadAccomplishmentMiddleware");
 
 const router = express.Router();
 
@@ -48,7 +48,7 @@ router.get(
 router.post(
   "/accomplishment/:attendanceId",
   authenticateToken,
-  uploadPhoto,
+  uploadAccomplishmentPhotos,
   uploadAccomplishmentReport
 );
 
