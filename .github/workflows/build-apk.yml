@@ -151,3 +151,11 @@ jobs:
           path: frontend/Inzone.apk
           if-no-files-found: error
           retention-days: 30
+
+          
+      - name: Build Ionic application
+        run: npm run build
+        env:
+          VITE_API_URL: https://inzone-backend.onrender.com
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+
