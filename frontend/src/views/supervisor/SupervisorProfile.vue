@@ -84,7 +84,8 @@ onIonViewWillEnter(() => {
       <main class="sv-shell narrow">
         <header class="sv-heading">
           <div>
-            <h1>Account</h1>
+            <span class="sv-eyebrow">Profile &amp; settings</span>
+            <h1>My <em>account.</em></h1>
             <p>Your supervisor account and the companies you handle.</p>
           </div>
         </header>
@@ -98,11 +99,16 @@ onIonViewWillEnter(() => {
         <div v-if="loading && !profile" class="sv-skeleton" style="height: 320px"></div>
 
         <template v-if="profile">
-          <section class="sv-card identity">
-            <span class="sv-avatar big">{{ initials(profile) }}</span>
-            <div>
+          <section class="sv-hero identity sv-rise">
+            <span class="identity-avatar">{{ initials(profile) }}</span>
+            <div class="identity-text">
+              <span class="sv-hero-kicker"><IonIcon :icon="shieldCheckmarkOutline" /> COMPANY SUPERVISOR</span>
               <h2>{{ fullName(profile) }}</h2>
-              <p>Company supervisor</p>
+              <p>{{ profile.email || 'No email on file' }}</p>
+            </div>
+            <div class="identity-stats">
+              <span><strong>{{ profile.assigned_students }}</strong> {{ profile.assigned_students === 1 ? 'student' : 'students' }}</span>
+              <span><strong>{{ profile.companies.length }}</strong> {{ profile.companies.length === 1 ? 'company' : 'companies' }}</span>
             </div>
           </section>
 
@@ -185,27 +191,64 @@ onIonViewWillEnter(() => {
 .identity {
   display: flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 14px;
+  padding: 26px;
 }
 
-.sv-avatar.big {
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
-  font-size: 21px;
+.identity-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  background: #ceffe1;
+  color: #08765a;
+  font-size: 24px;
+  font-weight: 850;
+  box-shadow: 0 0 0 6px #ffffff14;
 }
 
-.identity h2 {
-  margin: 0;
-  font-size: 21px;
-  color: var(--sv-ink);
+.identity-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.identity .identity-text h2 {
+  margin: 10px 0 2px;
+  font-size: 24px;
+  letter-spacing: -0.8px;
   overflow-wrap: anywhere;
 }
 
-.identity p {
-  margin: 4px 0 0;
-  color: var(--sv-muted);
-  font-size: 13px;
+.identity .identity-text p {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.identity-stats {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.identity-stats span {
+  flex: 1;
+  padding: 11px 12px;
+  border: 1px solid #ffffff22;
+  border-radius: 13px;
+  background: #ffffff12;
+  color: #cde9dc;
+  font-size: 11px;
+}
+
+.identity-stats strong {
+  display: block;
+  color: #fff;
+  font-size: 20px;
+  letter-spacing: -0.5px;
 }
 
 .facts,
@@ -235,6 +278,22 @@ onIonViewWillEnter(() => {
   flex-shrink: 0;
   color: var(--sv-primary);
   font-size: 19px;
+}
+
+.facts ion-icon {
+  box-sizing: content-box;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--sv-primary-soft);
+  font-size: 18px;
+}
+
+.companies li {
+  transition: transform 0.18s ease;
+}
+
+.companies li:hover {
+  transform: translateX(3px);
 }
 
 .facts small {

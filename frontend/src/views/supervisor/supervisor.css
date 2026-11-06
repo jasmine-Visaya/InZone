@@ -2,11 +2,13 @@
    SHARED SUPERVISOR STYLES
    Used by every supervisor page with:
    <style scoped src="./supervisor.css"></style>
-   Colors follow the existing InZone admin/student pages.
+   Visual language matches the Admin and Student dashboards:
+   eyebrow labels, heavy headings with a green accent word,
+   green gradient hero, soft-shadow cards that lift on hover.
 ===================================== */
 
 .sv-content {
-  --background: #f2f8f5;
+  --background: radial-gradient(circle at 95% 0%, #ddf1e8, transparent 38%), #f2f8f5;
   --color: #163e30;
 }
 
@@ -21,6 +23,7 @@
   --sv-primary: #0b7959;
   --sv-primary-soft: #e3f4ea;
   --sv-accent: #18aa7b;
+  --sv-eyebrow: #0c8e67;
 
   --sv-active: #2f7fa6;
   --sv-active-soft: #e5f1f8;
@@ -30,10 +33,13 @@
   --sv-alert-soft: #ffe9e5;
   --sv-idle: #8a9a91;
   --sv-idle-soft: #eef3f0;
+
+  --sv-shadow: 0 12px 35px #104a330a;
+  --sv-shadow-lift: 0 16px 34px #0b523517;
 }
 
 .sv-shell {
-  max-width: 1120px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 30px clamp(16px, 4vw, 40px)
     calc(140px + env(safe-area-inset-bottom, 0px));
@@ -65,6 +71,32 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
+/* ---------- eyebrow label (same as admin/student) ---------- */
+
+.sv-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sv-eyebrow);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.sv-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #12b886;
+  box-shadow: 0 0 0 5px #12b88618;
+  animation: sv-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes sv-pulse {
+  50% { box-shadow: 0 0 0 8px #12b88600; }
+}
+
 /* ---------- page heading ---------- */
 
 .sv-heading {
@@ -72,38 +104,52 @@ a:focus-visible {
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 22px;
+  margin-bottom: 24px;
 }
 
 .sv-heading h1 {
-  margin: 0 0 6px;
+  margin: 10px 0 8px;
   color: var(--sv-ink);
-  font-size: clamp(27px, 4vw, 36px);
-  letter-spacing: -0.9px;
-  line-height: 1.15;
+  font-size: clamp(28px, 3.6vw, 40px);
+  font-weight: 850;
+  letter-spacing: -1.4px;
+  line-height: 1.12;
+}
+
+/* Accent word: <h1>My <em>students.</em></h1> */
+.sv-heading h1 em {
+  font-style: normal;
+  color: #098561;
 }
 
 .sv-heading p {
   margin: 0;
   color: var(--sv-muted);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.65;
   max-width: 60ch;
 }
 
 .sv-refresh {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   flex-shrink: 0;
-  padding: 11px 15px;
+  padding: 12px 16px;
   min-height: 44px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--sv-primary-soft);
-  color: var(--sv-primary);
-  font-size: 13px;
-  font-weight: 800;
+  border: 1px solid #cde7d7;
+  border-radius: 13px;
+  background: #fff;
+  color: #0e7c5a;
+  font-size: 12px;
+  font-weight: 850;
+  box-shadow: 0 8px 23px #173e3010;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.sv-refresh:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px #173e301c;
 }
 
 .sv-refresh ion-icon {
@@ -115,39 +161,223 @@ a:focus-visible {
 .sv-card {
   background: var(--sv-card);
   border: 1px solid var(--sv-line);
-  border-radius: 20px;
+  border-radius: 22px;
   padding: clamp(16px, 3vw, 24px);
+  box-shadow: var(--sv-shadow);
+}
+
+/* Anything clickable that should float up on hover. */
+.sv-lift {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.sv-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--sv-shadow-lift);
+  border-color: #bfe0cc;
+}
+
+.sv-lift:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+/* Staggered entrance. Set :style="{ '--i': index }" for the delay. */
+.sv-rise {
+  animation: sv-rise 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+
+@keyframes sv-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .sv-section-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .sv-section-head h2 {
-  margin: 0;
-  font-size: 18px;
+  margin: 6px 0 0;
+  font-size: 19px;
+  font-weight: 850;
   color: var(--sv-ink);
-  letter-spacing: -0.3px;
+  letter-spacing: -0.5px;
 }
 
 .sv-section-head p {
   margin: 4px 0 0;
   color: var(--sv-muted);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .sv-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
-  background: none;
-  padding: 6px 0;
-  color: var(--sv-primary);
-  font-size: 13px;
-  font-weight: 800;
+  border-radius: 10px;
+  background: #e7f7ee;
+  padding: 9px 12px;
+  color: #0b8059;
+  font-size: 11px;
+  font-weight: 850;
   white-space: nowrap;
+  transition: background 0.18s ease;
+}
+
+.sv-link:hover {
+  background: #d8f1e3;
+}
+
+/* ---------- green hero panel (dashboard, account) ---------- */
+
+.sv-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 26px;
+  padding: clamp(24px, 3.6vw, 40px);
+  color: #fff;
+  background: linear-gradient(120deg, #07362e 0%, #075441 46%, #0b8c65 100%);
+  box-shadow: 0 22px 42px #07583e28;
+}
+
+.sv-hero::before,
+.sv-hero::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.sv-hero::before {
+  width: 410px;
+  height: 410px;
+  right: -170px;
+  top: -200px;
+  background: #76f1b422;
+  filter: blur(25px);
+}
+
+.sv-hero::after {
+  width: 300px;
+  height: 300px;
+  left: 25%;
+  bottom: -260px;
+  background: #a2fbc524;
+  filter: blur(40px);
+}
+
+.sv-hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid #e2ffe538;
+  border-radius: 30px;
+  background: #ffffff12;
+  color: #b4f8d8;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1px;
+}
+
+.sv-hero h2 {
+  margin: 16px 0 12px;
+  font-size: clamp(28px, 3.8vw, 44px);
+  font-weight: 850;
+  letter-spacing: -1.6px;
+  line-height: 1.1;
+}
+
+.sv-hero h2 span {
+  color: #8aefbf;
+}
+
+.sv-hero p {
+  margin: 0;
+  max-width: 470px;
+  color: #cde9dc;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.sv-hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #e8ffec;
+  color: #07583f;
+  font-size: 12px;
+  font-weight: 850;
+  transition: transform 0.18s ease;
+}
+
+.sv-hero-btn:hover {
+  transform: translateY(-2px);
+}
+
+.sv-hero-btn.ghost {
+  background: #ffffff18;
+  color: #e8fff3;
+  border: 1px solid #ffffff45;
+}
+
+.sv-hero-btn .badge {
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: #0b7959;
+  color: #fff;
+  font-size: 10px;
+  text-align: center;
+}
+
+/* ---------- progress ring (conic) ---------- */
+/* <span class="sv-ring" :style="{ '--p': 42 }"><b>42%</b></span> */
+
+.sv-ring {
+  --p: 0;
+  --ring-fill: var(--sv-accent);
+  --ring-track: #e5efe9;
+  --ring-hole: #fff;
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--ring-fill) calc(var(--p) * 1%),
+    var(--ring-track) 0
+  );
+}
+
+.sv-ring::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--ring-hole);
+}
+
+.sv-ring > * {
+  position: relative;
+  color: var(--sv-ink);
+  font-size: 12px;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- messages ---------- */
@@ -158,11 +388,13 @@ a:focus-visible {
   gap: 10px;
   padding: 13px 15px;
   margin-bottom: 18px;
+  border: 1px solid #f5cfc4;
   border-radius: 13px;
-  background: var(--sv-alert-soft);
+  background: #fff0eb;
   color: #8f3328;
   font-size: 13px;
   line-height: 1.5;
+  animation: sv-rise 0.3s ease both;
 }
 
 .sv-error ion-icon {
@@ -188,11 +420,15 @@ a:focus-visible {
   gap: 10px;
   padding: 13px 15px;
   margin-bottom: 18px;
+  border: 1px solid #c7e7d4;
   border-radius: 13px;
   background: var(--sv-primary-soft);
   color: #12603f;
   font-size: 13px;
+  animation: sv-rise 0.3s ease both;
 }
+
+/* ---------- empty states ---------- */
 
 .sv-empty {
   display: flex;
@@ -200,43 +436,70 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 38px 18px;
+  padding: 44px 18px;
   text-align: center;
   color: var(--sv-muted);
 }
 
+/* Icon sits in two soft rings and floats gently. */
 .sv-empty > ion-icon {
-  font-size: 34px;
-  color: #8bbda0;
+  box-sizing: content-box;
+  width: 30px;
+  height: 30px;
+  padding: 17px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: #e3f6e9;
+  color: #0b815c;
+  font-size: 30px;
+  box-shadow:
+    0 0 0 10px #f1faf4,
+    0 0 0 11px #d9ece0;
+  animation: sv-float 3.6s ease-in-out infinite;
+}
+
+@keyframes sv-float {
+  50% { transform: translateY(-5px); }
 }
 
 .sv-empty h3 {
   margin: 4px 0 0;
-  color: var(--sv-ink-soft);
-  font-size: 16px;
+  color: var(--sv-ink);
+  font-size: 17px;
+  font-weight: 850;
+  letter-spacing: -0.3px;
 }
 
 .sv-empty p {
   margin: 0;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.65;
   max-width: 44ch;
 }
 
 /* ---------- people ---------- */
 
 .sv-avatar {
+  --av-bg: var(--sv-primary-soft);
+  --av-fg: var(--sv-primary);
   display: grid;
   place-items: center;
   flex-shrink: 0;
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: var(--sv-primary-soft);
-  color: var(--sv-primary);
+  background: var(--av-bg);
+  color: var(--av-fg);
   font-size: 14px;
   font-weight: 850;
 }
+
+/* Use :class="avatarTone(student.id)" for a stable per-student colour. */
+.sv-avatar.t1 { --av-bg: #e0f7ec; --av-fg: #09865d; }
+.sv-avatar.t2 { --av-bg: #e7efff; --av-fg: #4f72c4; }
+.sv-avatar.t3 { --av-bg: #fff2dc; --av-fg: #a87222; }
+.sv-avatar.t4 { --av-bg: #f1edff; --av-fg: #7259c2; }
+.sv-avatar.t5 { --av-bg: #ffedea; --av-fg: #b9534f; }
 
 .sv-name {
   margin: 0;
@@ -280,6 +543,15 @@ a:focus-visible {
 .sv-pill.alert { color: var(--sv-alert); background: var(--sv-alert-soft); }
 .sv-pill.idle { color: var(--sv-idle); background: var(--sv-idle-soft); }
 
+/* "On duty" dot blinks so live students stand out. */
+.sv-pill.active::before {
+  animation: sv-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes sv-blink {
+  50% { opacity: 0.25; }
+}
+
 /* ---------- search ---------- */
 
 .sv-search {
@@ -292,11 +564,13 @@ a:focus-visible {
   border-radius: 13px;
   background: #fbfdfb;
   color: var(--sv-muted);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .sv-search:focus-within {
   border-color: var(--sv-primary);
-  box-shadow: 0 0 0 3px #0b795917;
+  background: #fff;
+  box-shadow: 0 0 0 4px #0b795914;
 }
 
 .sv-search input {
@@ -340,6 +614,12 @@ a:focus-visible {
   font-size: 13px;
   font-weight: 750;
   white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sv-tabs button:not(.is-active):hover {
+  background: #ffffff8c;
+  color: var(--sv-ink);
 }
 
 .sv-tabs button.is-active {
@@ -355,10 +635,67 @@ a:focus-visible {
   background: #d6e9de;
   color: #2c5a44;
   font-size: 11px;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .sv-tabs button.is-active .count {
   background: var(--sv-primary);
+  color: #fff;
+}
+
+/* ---------- filter chips ---------- */
+
+.sv-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0 4px;
+}
+
+.sv-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.sv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--sv-line);
+  border-radius: 99px;
+  background: #fff;
+  color: var(--sv-ink-soft);
+  font-size: 12px;
+  font-weight: 800;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.sv-chip:hover {
+  border-color: #b9dcc7;
+}
+
+.sv-chip.is-active {
+  border-color: var(--sv-primary);
+  background: var(--sv-primary);
+  color: #fff;
+  box-shadow: 0 6px 16px #0b795930;
+}
+
+.sv-chip b {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: #eef5f1;
+  color: var(--sv-ink-soft);
+  font-size: 10px;
+  text-align: center;
+}
+
+.sv-chip.is-active b {
+  background: #ffffff2e;
   color: #fff;
 }
 
@@ -376,6 +713,7 @@ a:focus-visible {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--sv-primary), var(--sv-accent));
+  transition: width 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 /* ---------- buttons ---------- */
@@ -391,13 +729,22 @@ a:focus-visible {
   border: 0;
   font-size: 14px;
   font-weight: 800;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.sv-btn:not(:disabled):hover {
+  filter: brightness(0.97);
+}
+
+.sv-btn:not(:disabled):active {
+  transform: scale(0.98);
 }
 
 .sv-btn ion-icon {
   font-size: 18px;
 }
 
-.sv-btn.primary { background: var(--sv-primary); color: #fff; }
+.sv-btn.primary { background: var(--sv-primary); color: #fff; box-shadow: 0 8px 18px #0b795930; }
 .sv-btn.soft { background: var(--sv-primary-soft); color: var(--sv-primary); }
 .sv-btn.danger { background: var(--sv-alert); color: #fff; }
 .sv-btn.danger-soft {
@@ -448,7 +795,19 @@ a:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .sv-skeleton,
-  .sv-spin {
+  .sv-spin,
+  .sv-rise,
+  .sv-live-dot,
+  .sv-empty > ion-icon,
+  .sv-pill.active::before {
     animation: none;
+  }
+
+  .sv-lift,
+  .sv-lift:hover,
+  .sv-refresh,
+  .sv-hero-btn {
+    transition: none;
+    transform: none;
   }
 }

@@ -464,12 +464,12 @@ onUnmounted(() => {
         <header class="page-header">
           <div class="header-text">
             <span class="eyebrow">
-              SUPERVISOR PORTAL
+              PHOTO EVIDENCE
             </span>
 
             <h1>
-              Daily Accomplishment
-              <span>Reports.</span>
+              Daily
+              <span>accomplishments.</span>
             </h1>
 
             <p>
@@ -1030,7 +1030,7 @@ onUnmounted(() => {
 ===================================== */
 
 .accomplishment-content {
-  --background: #f3f8f5;
+  --background: radial-gradient(circle at 95% 0%, #ddf1e8, transparent 38%), #f2f8f5;
 }
 
 .accomplishment-container {

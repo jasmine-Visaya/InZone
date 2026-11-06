@@ -34,6 +34,7 @@ import {
   ApiError,
   fullName,
   initials,
+  avatarTone,
   formatWeek,
   formatDateTime,
   reportStatus,
@@ -222,7 +223,8 @@ onIonViewWillEnter(() => {
       <main class="sv-shell">
         <header class="sv-heading">
           <div>
-            <h1>Weekly reports</h1>
+            <span class="sv-eyebrow">Review queue</span>
+            <h1>Weekly <em>reports.</em></h1>
             <p>Read what your students accomplished each week, then approve it or send it back with a comment.</p>
           </div>
           <button class="sv-refresh" type="button" :disabled="loading" @click="loadReports">
@@ -242,7 +244,7 @@ onIonViewWillEnter(() => {
           <span>{{ success }}</span>
         </div>
 
-        <section class="sv-card">
+        <section class="sv-card sv-rise">
           <div class="toolbar">
             <div class="sv-tabs" role="tablist" aria-label="Filter reports">
               <button
@@ -277,7 +279,7 @@ onIonViewWillEnter(() => {
           <ul v-else class="list">
             <li v-for="report in visibleReports" :key="report.id">
               <button type="button" class="report-row" @click="openReport(report)">
-                <span class="sv-avatar">{{ initials(report) }}</span>
+                <span class="sv-avatar" :class="avatarTone(report.user_id ?? report.id)">{{ initials(report) }}</span>
                 <span class="report-main">
                   <span class="report-top">
                     <span class="sv-name">{{ fullName(report) }}</span>
@@ -309,7 +311,7 @@ onIonViewWillEnter(() => {
     >
       <div v-if="selected" class="sv-modal modal-shell">
         <header class="modal-header">
-          <span class="sv-avatar">{{ initials(selected) }}</span>
+          <span class="sv-avatar" :class="avatarTone(selected.user_id ?? selected.id)">{{ initials(selected) }}</span>
           <div class="modal-title">
             <h2>{{ fullName(selected) }}</h2>
             <p>{{ selected.company_name || selected.email }}</p>
@@ -433,9 +435,15 @@ onIonViewWillEnter(() => {
   text-align: left;
 }
 
+.report-row {
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
 .report-row:hover {
   border-color: #c7e2d2;
   background: #f8fcf9;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px #104a3310;
 }
 
 .report-main {

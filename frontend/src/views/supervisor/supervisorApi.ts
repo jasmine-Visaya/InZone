@@ -374,3 +374,14 @@ export function reportTone(status: string): string {
       return 'waiting';
   }
 }
+
+// Stable avatar colour per student: same person, same colour everywhere.
+// Returns t1..t5, styled in supervisor.css (.sv-avatar.t1 ... .t5).
+export function avatarTone(id: Id | null | undefined): string {
+  const text = String(id ?? '');
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return `t${(hash % 5) + 1}`;
+}

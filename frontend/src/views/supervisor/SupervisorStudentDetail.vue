@@ -35,6 +35,7 @@ import {
   errorMessage,
   fullName,
   initials,
+  avatarTone,
   formatDate,
   formatTime,
   formatHours,
@@ -147,7 +148,7 @@ onIonViewWillEnter(() => {
         <template v-if="student && detail">
           <!-- WHO -->
           <header class="person">
-            <span class="sv-avatar big">{{ initials(student) }}</span>
+            <span class="sv-avatar big" :class="avatarTone(student.id)">{{ initials(student) }}</span>
             <div class="person-text">
               <h1>{{ fullName(student) }}</h1>
               <p><IonIcon :icon="mailOutline" /> {{ student.email || 'No email' }}</p>
@@ -375,8 +376,9 @@ onIonViewWillEnter(() => {
 
 .person-text h1 {
   margin: 0 0 5px;
-  font-size: clamp(24px, 4vw, 32px);
-  letter-spacing: -0.7px;
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 850;
+  letter-spacing: -1.2px;
   color: var(--sv-ink);
   overflow-wrap: anywhere;
 }
