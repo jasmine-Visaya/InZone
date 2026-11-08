@@ -879,6 +879,7 @@ onIonViewWillEnter(() => {
 
           <div>
 
+            <span class="header-kicker">STUDENT PORTAL / ATTENDANCE</span>
             <h1>My Attendance<span>.</span></h1>
 
             <p>
@@ -940,6 +941,8 @@ onIonViewWillEnter(() => {
 
 
         <section class="attendance-hero">
+          <div class="hero-decor hero-decor-one" aria-hidden="true"></div>
+          <div class="hero-decor hero-decor-two" aria-hidden="true"></div>
 
           <div class="hero-top">
 
@@ -3628,4 +3631,131 @@ button:disabled {
 .attendance-map-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .map-pin-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 12px; border: 1px solid #cfe5d6; border-radius: 10px; background: #eff9f3; color: #0a7957; font-size: 11px; font-weight: 800; cursor: pointer; }
 .map-pin-button:hover { background: #e0f3e7; }
+
+/* =====================================================
+   ADMIN-INSPIRED STUDENT ATTENDANCE REDESIGN
+   Presentation-only overrides; existing methods and API untouched.
+   ===================================================== */
+.attendance-content { --background: #f2f8f5; --color: #183d32; }
+.attendance-container { max-width: 1260px; padding: 30px clamp(16px, 4vw, 46px) calc(132px + env(safe-area-inset-bottom, 0px)); }
+.page-header { position: relative; margin-bottom: 24px; padding: 3px 0 4px 0; min-height: 100px; }
+.page-header-accent { position: absolute; left: 0; top: 5px; bottom: 5px; width: 5px; border-radius: 20px; background: linear-gradient(#1ec48c,#087654); }
+.header-kicker { display: inline-block; font-size: 11px; font-weight: 850; letter-spacing: 1.5px; color: #07805c; }
+.page-header h1 { font-size: clamp(29px, 3.6vw, 43px); margin: 9px 0 6px; line-height: 1.13; }
+.page-header p { font-size: 13px; color: #718b7c; max-width: 540px; }
+.refresh-button { width: 48px; height: 48px; border-radius: 14px; box-shadow: 0 5px 15px #0c65400d; transition: transform .2s, background .2s; }
+.refresh-button:hover { transform: translateY(-2px); background: #eaf7ef; }
+.attendance-hero { isolation: isolate; padding: clamp(24px, 3.4vw, 38px); min-height: 260px; border-radius: 25px; background: linear-gradient(115deg,#0b775b,#064938 70%,#073a34); box-shadow: 0 18px 45px #0d594026; }
+.hero-decor { position: absolute; z-index: -1; border: 1px solid #ffffff24; border-radius: 50%; pointer-events: none; }
+.hero-decor-one { width: 340px; height: 340px; right: -100px; top: -175px; }
+.hero-decor-two { width: 240px; height: 240px; right: -35px; top: -115px; background: #ffffff09; }
+.hero-top { position: relative; z-index: 1; align-items: center; }
+.hero-eyebrow { font-size: 11px; letter-spacing: 1.6px; color: #b9efd8; }
+.hero-top h2 { font-size: clamp(27px, 3.2vw, 38px); letter-spacing: -.9px; margin: 12px 0 9px; }
+.hero-top p { font-size: 13px; }
+.hero-symbol { width: 64px; height: 64px; border-radius: 19px; font-size: 30px; backdrop-filter: blur(6px); }
+.hero-status { margin-top: 17px; }
+.status-pill { padding: 9px 13px; font-size: 11px; }
+.hero-time-grid { margin-top: 25px; gap: 14px; }
+.hero-time-card { border-radius: 16px; padding: 19px 21px; backdrop-filter: blur(5px); transition: background .2s; }
+.hero-time-card:hover { background: #ffffff20; }
+.time-card-label { font-size: 11px; }
+.hero-time-card strong { font-size: clamp(19px,2.2vw,26px); }
+.hero-bottom { margin-top: 22px; }
+.hero-bottom span { font-size: 13px; }
+.hero-bottom strong { font-size: 17px; }
+.summary-grid { margin-top: 20px; gap: 16px; }
+.summary-card { min-width: 0; padding: 22px; border-radius: 19px; border-color: #e0ebe5; box-shadow: 0 8px 25px #124f3510; transition: transform .2s, box-shadow .2s; }
+.summary-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px #124f351a; }
+.summary-icon { width: 49px; height: 49px; border-radius: 14px; }
+.summary-card > span { font-size: 12px; margin-top: 17px; }
+.summary-card > strong { font-size: clamp(23px,2.3vw,29px); color: #163e30; }
+.summary-card > small { font-size: 11px; line-height: 1.5; }
+.track-link-card { margin-top: 22px; padding: 22px 24px; border-radius: 19px; background: linear-gradient(110deg,#e7f6ed,#f3faf6); }
+.track-link-icon { width: 54px; height: 54px; border-radius: 15px; font-size: 26px; }
+.track-link-info h3 { font-size: 16px; font-weight: 850; }
+.track-link-info p { font-size: 12px; line-height: 1.65; }
+.track-button { padding: 14px 18px; font-size: 12px; border-radius: 12px; min-height: 45px; }
+.history-card { margin-top: 24px; padding: clamp(18px,2.5vw,30px); border-radius: 22px; box-shadow: 0 8px 25px #124f350c; }
+.section-eyebrow { font-size: 11px; }
+.section-heading h2 { font-size: clamp(21px,2.5vw,27px); margin: 9px 0 7px; }
+.section-heading p { font-size: 13px; }
+.heading-icon { width: 52px; height: 52px; }
+.filter-row { margin-top: 23px; }
+.month-filter { min-height: 47px; border-radius: 12px; }
+.month-filter input { font-size: 13px; }
+.history-meta { margin: 21px 0 16px; }
+.history-meta span,.history-meta strong { font-size: 13px; }
+.records-list { gap: 15px; }
+.attendance-record { padding: 20px; border-radius: 17px; background: #fbfdfc; transition: border-color .2s, box-shadow .2s; }
+.attendance-record:hover { border-color: #b8dcc9; box-shadow: 0 8px 24px #174d3510; }
+.record-calendar { width: 47px; height: 47px; border-radius: 13px; }
+.record-date h3 { font-size: 15px; }
+.record-date p { font-size: 11px; }
+.record-status { font-size: 11px; padding: 9px 12px; }
+.record-times { gap: 12px; margin-top: 19px; }
+.record-times > div { padding: 16px; border-radius: 12px; }
+.record-times span { font-size: 11px; }
+.record-times strong { font-size: 14px; margin-top: 10px; }
+.record-footer { margin-top: 17px; padding-top: 16px; }
+.verified-label { font-size: 11px; }
+.proof-button,.map-pin-button { min-height: 40px; font-size: 12px; border-radius: 11px; }
+.show-more-button { min-height: 48px; font-size: 13px; }
+.security-note { margin-top: 20px; padding: 17px; border-radius: 13px; }
+.security-note p { font-size: 12px; }
+.proof-overlay { padding: 16px; backdrop-filter: blur(4px); }
+.proof-modal { width: min(100%, 560px); padding: 25px; border-radius: 22px; }
+.proof-modal-header h2 { font-size: 24px; }
+.proof-modal-header p { font-size: 13px; }
+.proof-image { max-height: 60vh; }
+@media (max-width: 680px) {
+ .attendance-container { padding: 20px 15px calc(135px + env(safe-area-inset-bottom, 0px)); }
+ .page-header { min-height: 0; padding-left: 0; gap: 10px; }
+ .header-kicker { font-size: 9px; letter-spacing: 1.1px; }
+ .page-header h1 { font-size: clamp(26px,7vw,33px); }
+ .page-header p { font-size: 12px; }
+ .refresh-button { flex-shrink: 0; width: 43px; height: 43px; }
+ .attendance-hero { min-height: 0; padding: 23px 18px; border-radius: 20px; }
+ .hero-top h2 { font-size: 27px; }
+ .hero-symbol { width: 49px; height: 49px; font-size: 24px; }
+ .hero-time-grid { gap: 10px; }
+ .hero-time-card { padding: 14px 12px; }
+ .hero-time-card strong { font-size: clamp(16px,4.2vw,21px); overflow-wrap: anywhere; }
+ .hero-bottom { align-items: flex-start; }
+ .hero-bottom span { font-size: 11px; }
+ .hero-bottom strong { font-size: 13px; white-space: nowrap; }
+ .summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 11px; }
+ .summary-card { padding: 17px; }
+ .summary-card:last-child { grid-column: 1/-1; }
+ .summary-card > span { font-size: 11px; }
+ .summary-card > strong { font-size: 23px; }
+ .track-link-card { padding: 17px; gap: 12px; }
+ .track-link-info h3 { font-size: 14px; }
+ .track-link-info p { font-size: 11px; }
+ .track-button { width: 100%; }
+ .history-card { padding: 17px 14px; border-radius: 19px; }
+ .section-heading h2 { font-size: 21px; }
+ .section-heading p { font-size: 12px; }
+ .heading-icon { width: 43px; height: 43px; }
+ .attendance-record { padding: 15px 12px; }
+ .record-times { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+ .record-times > div { padding: 12px; }
+ .record-times > div:last-child { grid-column: 1/-1; }
+ .record-times strong { font-size: 13px; }
+ .record-footer { align-items: stretch; }
+ .attendance-map-actions { width: 100%; }
+ .proof-button { margin-left: auto; }
+ .proof-modal { padding: 18px; }
+}
+@media (max-width: 390px) {
+ .page-header h1 { font-size: 25px; }
+ .hero-time-card strong { font-size: 15px; }
+ .record-header { flex-wrap: wrap; }
+ .record-footer { flex-direction: column; }
+ .proof-button { width: 100%; margin-left: 0; }
+ .map-pin-button { flex: 1; }
+ .summary-card > strong { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) { .summary-card,.attendance-record,.refresh-button { transition: none; } }
+
 </style>

@@ -23,6 +23,7 @@ import {
   closeOutline,
   searchOutline,
   documentTextOutline,
+  imageOutline,
   chatbubbleEllipsesOutline,
 } from 'ionicons/icons';
 
@@ -64,6 +65,32 @@ const comment = ref('');
 const confirming = ref<Decision | null>(null);
 const submitting = ref(false);
 const reviewError = ref('');
+
+type WeeklyPhoto = { path: string; photo_url: string };
+const weeklyPhotos = ref<WeeklyPhoto[]>([]);
+const photosLoading = ref(false);
+const photosError = ref('');
+let photosRequestId = 0;
+
+async function loadWeeklyPhotos(reportId: string | number) {
+  const requestId = ++photosRequestId;
+  weeklyPhotos.value = [];
+  photosError.value = '';
+  photosLoading.value = true;
+  try {
+    const result = await supervisorRequest<{ photos: WeeklyPhoto[] }>(
+      `/api/supervisor/reports/${encodeURIComponent(String(reportId))}/photos`
+    );
+    if (requestId !== photosRequestId) return;
+    weeklyPhotos.value = Array.isArray(result.photos) ? result.photos : [];
+  } catch (err) {
+    if (requestId === photosRequestId) {
+      photosError.value = errorMessage(err, 'Unable to load weekly photos.');
+    }
+  } finally {
+    if (requestId === photosRequestId) photosLoading.value = false;
+  }
+}
 
 const tabs = computed(() => {
   const count = (status: string) =>
@@ -140,10 +167,14 @@ function openReport(report: WeeklyReport) {
   confirming.value = null;
   reviewError.value = '';
   success.value = '';
+  void loadWeeklyPhotos(report.id);
 }
 
 function closeReport() {
   if (submitting.value) return;
+  photosRequestId++;
+  weeklyPhotos.value = [];
+  photosError.value = '';
   selected.value = null;
   confirming.value = null;
 }
@@ -334,6 +365,21 @@ onIonViewWillEnter(() => {
           <h3 class="block-title"><IonIcon :icon="documentTextOutline" /> What the student did this week</h3>
           <div class="report-text">{{ selected.report || 'No report text provided.' }}</div>
 
+          <h3 class="block-title"><IonIcon :icon="imageOutline" /> Weekly accomplishment photos</h3>
+          <p v-if="photosLoading" class="photo-note">Loading selected photos…</p>
+          <div v-else-if="photosError" class="photo-note" role="alert">
+            {{ photosError }}
+            <button type="button" @click="loadWeeklyPhotos(selected.id)">Retry</button>
+          </div>
+          <div v-else-if="weeklyPhotos.length" class="weekly-photo-grid">
+            <a v-for="(photo, index) in weeklyPhotos" :key="photo.path"
+              :href="photo.photo_url" target="_blank" rel="noopener noreferrer"
+              :aria-label="`Open weekly accomplishment photo ${index + 1}`">
+              <img :src="photo.photo_url" :alt="`Weekly accomplishment photo ${index + 1}`" loading="lazy" />
+            </a>
+          </div>
+          <p v-else class="photo-note">No photos were selected for this weekly report.</p>
+
           <!-- Already reviewed: show the feedback -->
           <template v-if="!isPending">
             <h3 class="block-title"><IonIcon :icon="chatbubbleEllipsesOutline" /> Supervisor comment</h3>
@@ -403,6 +449,11 @@ onIonViewWillEnter(() => {
 
 <style scoped src="./supervisor.css"></style>
 <style scoped>
+ .weekly-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 10px; margin: 0 0 20px; }
+.weekly-photo-grid a { display: block; border-radius: 12px; overflow: hidden; border: 1px solid #e3eee7; aspect-ratio: 1; }
+.weekly-photo-grid img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.photo-note { color: #657d70; font-size: 13px; margin: 0 0 20px; }
+.photo-note button { margin-left: 8px; color: #0a8060; font-weight: 700; }
 .toolbar {
   display: grid;
   grid-template-columns: auto minmax(200px, 1fr);

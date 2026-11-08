@@ -8,6 +8,7 @@ const {
   getAttendancePhotoProof,
   uploadAccomplishmentReport,
   getAccomplishmentPhoto,
+  getMyAccomplishmentPhotos,
 } = require("../controllers/attendanceController");
 
 const uploadPhoto = require("../middleware/uploadMiddleware");
@@ -50,6 +51,13 @@ router.post(
   authenticateToken,
   uploadAccomplishmentPhotos,
   uploadAccomplishmentReport
+);
+
+// FETCH EXISTING DAILY PHOTOS FOR WEEKLY REPORT
+router.get(
+  "/accomplishment-photos",
+  authenticateToken,
+  getMyAccomplishmentPhotos
 );
 
 // VIEW ACCOMPLISHMENT REPORT

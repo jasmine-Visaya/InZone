@@ -6,9 +6,10 @@ const authenticateToken = require("../middleware/authMiddleware");
 const requireSupervisor = require("../middleware/supervisorMiddleware");
 
 const {
-    getPendingReports,
-    getMyStudentsReports,
-    reviewReport
+  getPendingReports,
+  getMyStudentsReports,
+  reviewReport,
+  getWeeklyReportPhotos,
 } = require("../controllers/supervisorReportController");
 
 // All routes below require a valid supervisor JWT
@@ -19,6 +20,8 @@ router.get("/", getMyStudentsReports);
 
 // GET /api/supervisor/reports/pending
 router.get("/pending", getPendingReports);
+
+router.get("/:reportId/photos", getWeeklyReportPhotos);
 
 // PATCH /api/supervisor/reports/:reportId/review
 router.patch("/:reportId/review", reviewReport);

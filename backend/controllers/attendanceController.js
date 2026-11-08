@@ -403,32 +403,40 @@ const timeIn = async (req, res) => {
    POST /api/attendance/accomplishment/:attendanceId
 ========================================= */
 
+
 const uploadAccomplishmentReport = async (req, res) => {
+  const uploadedPaths = [];
+
   try {
-    // Check OJT approval
-    const approval = await getApprovedOjtProfile(
-      req.user.id
-    );
+    const approval = await getApprovedOjtProfile(req.user.id);
 
     if (!approval.allowed) {
-      return res
-        .status(approval.statusCode)
-        .json(approval.response);
+      return res.status(approval.statusCode).json(approval.response);
     }
-    ``
-    const photos = req.files || [];
 
-    if (photos.length === 0) {
+    const photos = req.files || [];
+    const description = String(
+      req.body?.accomplishment_text || ""
+    ).trim();
+
+    if (!description) {
       return res.status(400).json({
         success: false,
-        message: "At least one report photo is required.",
+        message: "Daily accomplishment description is required.",
       });
     }
 
-    if (photos.length > 10) {
+    if (description.length > 5000) {
       return res.status(400).json({
         success: false,
-        message: "Maximum of 10 photos only.",
+        message: "Description must not exceed 5000 characters.",
+      });
+    }
+
+    if (photos.length < 1 || photos.length > 10) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload 1 to 10 accomplishment photos.",
       });
     }
 
@@ -443,63 +451,50 @@ const uploadAccomplishmentReport = async (req, res) => {
       }
     }
 
-    if (imageError) {
-      return res.status(400).json({
-        success: false,
-        message: imageError,
-      });
-    }
-
     const today = getPhilippineDate();
     const attendanceId = req.params.attendanceId;
 
-    // Find today's attendance owned by student
     const lookup = await pool.query(
-      `SELECT
-         id,
-         user_id,
-         time_in,
-         time_out,
-         accomplishment_photo_path
+      `SELECT id, user_id, time_in, time_out,
+              accomplishment_photo_path,
+              accomplishment_photo_paths
        FROM attendance
        WHERE id = $1
          AND user_id = $2
          AND attendance_date = $3
        LIMIT 1`,
-      [
-        attendanceId,
-        req.user.id,
-        today,
-      ]
+      [attendanceId, req.user.id, today]
     );
 
     if (!lookup.rows.length) {
       return res.status(404).json({
         success: false,
-        message:
-          "Today's attendance record not found.",
+        message: "Today's attendance record not found.",
       });
     }
 
     const attendance = lookup.rows[0];
 
-    // Must have Time In but not Time Out
     if (!attendance.time_in || attendance.time_out) {
       return res.status(409).json({
         success: false,
         message:
-          "You can upload a report only after Time In and before Time Out.",
+          "You can submit a report only after Time In and before Time Out.",
       });
     }
 
-    // Do not accept duplicate reports
-    if (attendance.accomplishment_photo_path) {
+    if (
+      attendance.accomplishment_photo_path ||
+      (Array.isArray(attendance.accomplishment_photo_paths) &&
+        attendance.accomplishment_photo_paths.length > 0)
+    ) {
       return res.status(409).json({
         success: false,
-        message:
-          "Daily accomplishment report already uploaded.",
+        message: "Daily accomplishment report already submitted.",
       });
     }
+
+    const storage = supabase.storage.from("ojt-photo-proofs");
 
     const extensions = {
       "image/jpeg": "jpg",
@@ -507,121 +502,92 @@ const uploadAccomplishmentReport = async (req, res) => {
       "image/webp": "webp",
     };
 
-    const fileName =
-      `${crypto.randomUUID()}.${extensions[req.file.mimetype]}`;
+    for (const photo of photos) {
+      const extension = extensions[photo.mimetype];
 
-    const storagePath =
-      `${req.user.id}/${today}/accomplishment/${fileName}`;
+      const storagePath =
+        `${req.user.id}/${today}/accomplishment/` +
+        `${crypto.randomUUID()}.${extension}`;
 
-    // Upload report to private Supabase bucket
-    const storage = supabase.storage.from(
-      "ojt-photo-proofs"
-    );
-
-    const { error: storageError } =
-      await storage.upload(
+      const { error } = await storage.upload(
         storagePath,
-        req.file.buffer,
+        photo.buffer,
         {
-          contentType: req.file.mimetype,
+          contentType: photo.mimetype,
           upsert: false,
         }
       );
 
-    if (storageError) {
-      console.error(
-        "Accomplishment upload error:",
-        storageError
-      );
+      if (error) {
+        throw error;
+      }
 
-      return res.status(500).json({
+      uploadedPaths.push(storagePath);
+    }
+
+    const result = await pool.query(
+      `UPDATE attendance
+       SET accomplishment_photo_path = $1,
+           accomplishment_photo_paths = $2::jsonb,
+           accomplishment_text = $3,
+           accomplishment_uploaded_at = NOW()
+       WHERE id = $4
+         AND user_id = $5
+         AND attendance_date = $6
+         AND time_in IS NOT NULL
+         AND time_out IS NULL
+         AND accomplishment_photo_path IS NULL
+         AND accomplishment_photo_paths = '[]'::jsonb
+       RETURNING id, accomplishment_uploaded_at`,
+      [
+        uploadedPaths[0],
+        JSON.stringify(uploadedPaths),
+        description,
+        attendanceId,
+        req.user.id,
+        today,
+      ]
+    );
+
+    if (!result.rows.length) {
+      await storage.remove(uploadedPaths);
+
+      return res.status(409).json({
         success: false,
         message:
-          "Unable to store report photo.",
+          "Report could not be saved. Attendance may already be completed.",
       });
     }
 
-    try {
-      // Save report path only for active attendance
-      const saved = await pool.query(
-        `UPDATE attendance
-         SET
-           accomplishment_photo_path = $1,
-           accomplishment_uploaded_at = NOW()
-         WHERE id = $2
-           AND user_id = $3
-           AND attendance_date = $4
-           AND time_in IS NOT NULL
-           AND time_out IS NULL
-           AND accomplishment_photo_path IS NULL
-         RETURNING
-           id,
-           accomplishment_uploaded_at`,
-        [
-          storagePath,
-          attendanceId,
-          req.user.id,
-          today,
-        ]
-      );
-
-      if (!saved.rows.length) {
-        const cleanup = await storage.remove([
-          storagePath,
-        ]);
-
-        if (cleanup.error) {
-          console.error(
-            "Accomplishment cleanup failed:",
-            cleanup.error
-          );
-        }
-
-        return res.status(409).json({
-          success: false,
-          message:
-            "Report could not be saved; attendance may already be completed.",
-        });
-      }
-
-      return res.status(201).json({
-        success: true,
-        message:
-          "Daily accomplishment report uploaded successfully.",
-        attendance_id: saved.rows[0].id,
-        accomplishment_uploaded: true,
-        accomplishment_uploaded_at:
-          saved.rows[0].accomplishment_uploaded_at,
-      });
-
-    } catch (dbError) {
-      // Delete uploaded image if database update fails
-      const cleanup = await storage.remove([
-        storagePath,
-      ]);
-
-      if (cleanup.error) {
-        console.error(
-          "Accomplishment cleanup failed:",
-          cleanup.error
-        );
-      }
-
-      throw dbError;
-    }
-
+    return res.status(201).json({
+      success: true,
+      message: "Daily accomplishment report submitted successfully.",
+      attendance_id: result.rows[0].id,
+      accomplishment_uploaded: true,
+      accomplishment_uploaded_at:
+        result.rows[0].accomplishment_uploaded_at,
+      photo_count: uploadedPaths.length,
+    });
   } catch (error) {
-    console.error(
-      "Submit accomplishment report error:",
-      error
-    );
+    if (uploadedPaths.length > 0) {
+      const { error: cleanupError } = await supabase.storage
+        .from("ojt-photo-proofs")
+        .remove(uploadedPaths);
+
+      if (cleanupError) {
+        console.error("Photo cleanup error:", cleanupError);
+      }
+    }
+
+    console.error("Daily accomplishment submission error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Server error.",
+      message: "Unable to submit daily accomplishment report.",
     });
   }
 };
+
 
 /* =========================================
    GET ACCOMPLISHMENT REPORT PHOTO
@@ -955,61 +921,75 @@ const timeOut = async (req, res) => {
    GET /api/attendance/my-history
 ========================================= */
 
+
 const getMyAttendanceHistory = async (req, res) => {
   try {
     const userId = req.user.id;
 
     const result = await pool.query(
       `SELECT
-         id,
-         TO_CHAR(
-           attendance_date,
-           'YYYY-MM-DD'
-         ) AS attendance_date,
-         time_in,
-         time_out,
-         latitude_in,
-         longitude_in,
-         latitude_out,
-         longitude_out,
-         time_in_status,
-         time_out_status,
-         (
-           accomplishment_photo_path IS NOT NULL
-         ) AS accomplishment_uploaded,
-         accomplishment_uploaded_at,
-         CASE
-           WHEN time_in IS NOT NULL
-             AND time_out IS NOT NULL
-           THEN EXTRACT(
-             EPOCH FROM (time_out - time_in)
-           )
-           ELSE 0
-         END AS seconds_worked
-       FROM attendance
-       WHERE user_id = $1
-       ORDER BY attendance_date DESC`,
+        id,
+        TO_CHAR(
+          attendance_date,
+          'YYYY-MM-DD'
+        ) AS attendance_date,
+        time_in,
+        time_out,
+        latitude_in,
+        longitude_in,
+        latitude_out,
+        longitude_out,
+        time_in_status,
+        time_out_status,
+
+        accomplishment_photo_path,
+        accomplishment_photo_paths,
+        accomplishment_text,
+        accomplishment_uploaded_at,
+
+        (
+          accomplishment_photo_path IS NOT NULL
+        ) AS accomplishment_uploaded,
+
+        COALESCE(
+          review_status,
+          'PENDING'
+        ) AS review_status,
+
+        supervisor_comment,
+        reviewed_at,
+
+        CASE
+          WHEN time_in IS NOT NULL
+            AND time_out IS NOT NULL
+          THEN EXTRACT(
+            EPOCH FROM (time_out - time_in)
+          )
+          ELSE 0
+        END AS seconds_worked
+
+      FROM attendance
+      WHERE user_id = $1
+      ORDER BY attendance_date DESC`,
       [userId]
     );
 
     let totalSeconds = 0;
 
-    const attendance = result.rows.map(
-      (record) => {
-        const secondsWorked =
-          Number(record.seconds_worked) || 0;
+    const attendance = result.rows.map((record) => {
+      const secondsWorked =
+        Number(record.seconds_worked) || 0;
 
-        totalSeconds += secondsWorked;
+      totalSeconds += secondsWorked;
 
-        return {
-          ...record,
-          seconds_worked: secondsWorked,
-          hours_worked: Number(
-            (secondsWorked / 3600).toFixed(2)
-          ),
-        };
-      }
-    );
+      return {
+        ...record,
+        seconds_worked: secondsWorked,
+        hours_worked: Number(
+          (secondsWorked / 3600).toFixed(2)
+        ),
+      };
+    });
 
     return res.json({
       success: true,
@@ -1033,6 +1013,7 @@ const getMyAttendanceHistory = async (req, res) => {
     });
   }
 };
+
 
 /* =========================================
    GET TIME-IN PHOTO PROOF
@@ -1153,6 +1134,127 @@ const getAttendancePhotoProof = async (req, res) => {
   }
 };
 
+
+/* =========================================
+   GET MY DAILY ACCOMPLISHMENT PHOTOS
+   GET /api/attendance/accomplishment-photos
+========================================= */
+
+const getMyAccomplishmentPhotos = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const weekStart = String(req.query.week_start || "").trim();
+    const weekEnd = String(req.query.week_end || "").trim();
+
+    const validDate = (value) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+      const date = new Date(`${value}T00:00:00Z`);
+
+      return (
+        !Number.isNaN(date.getTime()) &&
+        date.toISOString().slice(0, 10) === value
+      );
+    };
+
+    if (!validDate(weekStart) || !validDate(weekEnd)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid week_start and week_end dates are required.",
+      });
+    }
+
+    if (weekStart > weekEnd) {
+      return res.status(400).json({
+        success: false,
+        message: "Week start must not be after week end.",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT
+         id,
+         TO_CHAR(attendance_date, 'YYYY-MM-DD')
+           AS attendance_date,
+         accomplishment_photo_path,
+         accomplishment_photo_paths,
+         accomplishment_text
+       FROM attendance
+       WHERE user_id = $1
+         AND attendance_date BETWEEN $2::date AND $3::date
+       ORDER BY attendance_date ASC`,
+      [userId, weekStart, weekEnd]
+    );
+
+    const storage = supabase.storage.from("ojt-photo-proofs");
+
+    const records = [];
+
+    for (const attendance of result.rows) {
+      const paths = Array.isArray(
+        attendance.accomplishment_photo_paths
+      )
+        ? attendance.accomplishment_photo_paths.filter(
+            (path) => typeof path === "string" && path.trim()
+          )
+        : [];
+
+      // Support old records that only contain one photo.
+      if (
+        attendance.accomplishment_photo_path &&
+        !paths.includes(attendance.accomplishment_photo_path)
+      ) {
+        paths.unshift(attendance.accomplishment_photo_path);
+      }
+
+      if (!paths.length) continue;
+
+      const photos = [];
+
+      for (const path of paths) {
+        const { data, error } = await storage.createSignedUrl(
+          path,
+          300
+        );
+
+        if (error || !data?.signedUrl) {
+          console.error("Photo signed URL error:", error);
+          continue;
+        }
+
+        photos.push({
+          path,
+          photo_url: data.signedUrl,
+        });
+      }
+
+      records.push({
+        attendance_id: attendance.id,
+        attendance_date: attendance.attendance_date,
+        accomplishment_text: attendance.accomplishment_text,
+        photos,
+      });
+    }
+
+    return res.json({
+      success: true,
+      week_start: weekStart,
+      week_end: weekEnd,
+      count: records.length,
+      records,
+    });
+  } catch (error) {
+    console.error("Fetch accomplishment photos error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to retrieve daily accomplishment photos.",
+    });
+  }
+};
+
+
 /* =========================================
    EXPORT ALL CONTROLLERS
 ========================================= */
@@ -1164,4 +1266,5 @@ module.exports = {
   getAttendancePhotoProof,
   uploadAccomplishmentReport,
   getAccomplishmentPhoto,
+  getMyAccomplishmentPhotos,
 };

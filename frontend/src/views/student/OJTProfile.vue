@@ -753,6 +753,8 @@ onMounted(() => {
 
             <div>
 
+              <span class="page-kicker">STUDENT PROFILE CENTER</span>
+
               <h1>My OJT Profile<span>.</span></h1>
 
               <p>Manage your company details, training schedule, and required hours.</p>
@@ -890,6 +892,7 @@ onMounted(() => {
       </section>
 
           <section class="hero">
+             <div class="hero-glow" aria-hidden="true"></div>
 
             <div class="hero-copy">
 
@@ -901,7 +904,7 @@ onMounted(() => {
 
             </div>
 
-            <div class="hero-icon" aria-hidden="true"><IonIcon :icon="navigateOutline" /></div>
+            <div class="hero-icon" aria-hidden="true"><span class="hero-icon-ring"><IonIcon :icon="navigateOutline" /></span></div>
 
           </section>
 
@@ -1811,4 +1814,48 @@ onMounted(() => {
 
 .profile-map-action small { font-size: 11px; color: #7a9083; line-height: 1.5; }
 
+
+/* Unified InZone Student UI — visual overrides only. Existing behavior untouched. */
+.profile-content{--background:#f4f8f5;--color:#173d30}
+.page-shell{background:radial-gradient(circle at 92% 0%,#e1f1e8 0,transparent 36%),#f4f8f5}
+.content{max-width:1220px;padding:25px clamp(16px,3vw,35px) calc(145px + env(safe-area-inset-bottom,0px))}
+.heading{margin:0 0 25px;align-items:center}
+.heading h1{font-size:clamp(30px,4vw,43px);line-height:1.15;letter-spacing:-1.2px;margin:8px 0 9px}
+.heading p{max-width:660px;line-height:1.65}
+.profile-badge{white-space:nowrap;border:1px solid #c8e9d4;background:#e6f7ec;padding:11px 15px;box-shadow:0 5px 14px #0b79590a}
+.hero{isolation:isolate;min-height:235px;padding:clamp(27px,4vw,44px);border-radius:25px;background:linear-gradient(120deg,#07362e 0%,#075441 48%,#0b8c65 100%);box-shadow:0 22px 42px #07583e28}
+.hero::before,.hero::after{content:"";position:absolute;border-radius:50%;pointer-events:none;z-index:-1}
+.hero::before{width:380px;height:380px;right:-115px;top:-240px;border:1px solid #ffffff2b}
+.hero::after{width:290px;height:290px;right:-65px;top:-190px;border:1px solid #ffffff21}
+.hero-glow{position:absolute;inset:0;background:radial-gradient(circle at 80% 65%,#9affbe18,transparent 37%);pointer-events:none}
+.hero-copy{max-width:690px}
+.hero-pill{font-size:10px;letter-spacing:1.15px;background:#ffffff12;padding:9px 13px;border-color:#ffffff39}
+.hero h2{font-size:clamp(28px,3.5vw,43px);line-height:1.13;letter-spacing:-1.5px;margin:20px 0 12px;overflow-wrap:anywhere}
+.hero p{max-width:540px;font-size:13px;line-height:1.85}
+.hero-icon{right:7%;top:50%;transform:translateY(-50%);opacity:1;font-size:60px}
+.hero-icon-ring{width:165px;height:165px;display:grid;place-items:center;border-radius:50%;border:1px solid #ffffff35;background:#ffffff0c;box-shadow:0 0 0 24px #ffffff08;color:#b5f9d4}
+.profile-grid{grid-template-columns:minmax(0,1.75fr) minmax(240px,.72fr);gap:18px;margin-top:22px;align-items:start}
+.main-card,.side-card,.state-card{border:1px solid #e0ebe3;border-radius:20px;box-shadow:0 8px 26px #124c3510}
+.main-card{padding:clamp(20px,3vw,32px)}
+.card-title-row{margin-bottom:21px;flex-wrap:wrap}
+.card-title-row h3{font-size:21px;letter-spacing:-.5px}
+.card-title-row p{font-size:13px;line-height:1.6}
+.edit-button,.workplace-map-button{border:1px solid #cfe9d9;transition:transform .18s,background .18s}
+.edit-button:hover,.workplace-map-button:hover{transform:translateY(-2px)}
+.details{display:grid;gap:2px}
+.detail{grid-template-columns:minmax(155px,.8fr) minmax(0,1.2fr);gap:14px;padding:18px 0}
+.detail span{font-size:13px;line-height:1.5}.detail strong{font-size:14px}
+.side{gap:16px}.side-card{padding:24px}.side-card.light{background:#f0f8f3;border-color:#dceee1}
+.side-card h3{font-size:16px}.side-card p{font-size:13px;line-height:1.7}
+.hours{font-size:41px;letter-spacing:-1.2px}
+.field label{font-size:13px}.input-wrap{min-height:52px}.input-wrap input{font-size:14px;min-height:50px}
+.schedule-panel{background:#f2faf5}.schedule-control{font-size:14px}
+.approval-card{border-radius:18px;padding:21px;box-shadow:0 5px 16px #154e3510}
+.approval-info h3{font-size:17px}.approval-info>p{font-size:13px}
+.footer{margin-top:10px}
+@media(max-width:920px){.profile-grid{grid-template-columns:1fr}.side{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.hero-icon{right:6%}}
+@media(max-width:600px){.content{padding:18px 15px calc(135px + env(safe-area-inset-bottom,0px))}.heading{flex-direction:row;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:20px}.heading h1{font-size:29px;margin:8px 0}.heading p{font-size:12px}.profile-badge{font-size:11px;padding:8px 11px}.hero{min-height:205px;padding:26px 22px;border-radius:21px}.hero h2{font-size:30px;max-width:100%;margin:17px 0 9px}.hero p{font-size:12px}.hero-icon{right:-25px;top:62%;opacity:.18}.hero-icon-ring{width:135px;height:135px}.profile-grid{gap:13px;margin-top:16px}.main-card{padding:19px 16px}.side{grid-template-columns:1fr;gap:12px}.side-card{padding:20px}.detail{grid-template-columns:1fr;gap:7px;padding:15px 0}.detail span{font-size:12px}.detail strong{font-size:13px}.card-title-row h3{font-size:19px}.date-grid,.schedule-grid{grid-template-columns:1fr}.approval-card{padding:16px;gap:12px}.approval-info h3{font-size:15px}.approval-info>p{font-size:12px}.footer{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.edit-button,.workplace-map-button{transition:none}}
+
+.page-kicker{display:inline-block;font-size:11px;letter-spacing:1.6px;font-weight:850;color:#0b946c;margin-bottom:2px}
 </style>

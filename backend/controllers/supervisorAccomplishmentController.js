@@ -130,6 +130,10 @@ const getSupervisorAccomplishments = async (req, res) => {
         a.time_in_status,
         a.time_out_status,
         a.accomplishment_uploaded_at,
+        a.accomplishment_text,
+        COALESCE(a.review_status, 'PENDING') AS review_status,
+        a.supervisor_comment,
+        a.reviewed_at,
         (
           a.accomplishment_photo_path IS NOT NULL
         ) AS accomplishment_uploaded,
@@ -216,6 +220,127 @@ const getSupervisorAccomplishments = async (req, res) => {
   }
 };
 
+// =====================================
+// APPROVE / REJECT DAILY ACCOMPLISHMENT
+// =====================================
+
+const reviewSupervisorAccomplishment = async (req, res) => {
+  try {
+    if (
+      String(req.user?.role || "").toUpperCase() !== "SUPERVISOR"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Supervisor access only.",
+      });
+    }
+
+    const supervisorId = req.user.id;
+    const attendanceId = req.params.attendanceId;
+
+    const status = String(
+      req.body?.status || ""
+    ).toUpperCase();
+
+    const supervisorComment = String(
+      req.body?.supervisor_comment || ""
+    ).trim();
+
+    if (!["APPROVED", "REJECTED"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid review status.",
+      });
+    }
+
+    if (supervisorComment.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        message: "Comment must not exceed 2000 characters.",
+      });
+    }
+
+    if (status === "REJECTED" && !supervisorComment) {
+      return res.status(400).json({
+        success: false,
+        message: "A comment is required when rejecting.",
+      });
+    }
+
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        String(attendanceId)
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid attendance ID.",
+      });
+    }
+
+    // Update only a pending, submitted report
+    // belonging to a student assigned to this supervisor.
+    const result = await pool.query(
+      `
+      UPDATE attendance a
+      SET
+        review_status = $1,
+        supervisor_comment = $2,
+        reviewed_at = NOW(),
+        reviewed_by = $3
+      WHERE a.id = $4
+        AND COALESCE(a.review_status, 'PENDING') = 'PENDING'
+        AND a.accomplishment_photo_path IS NOT NULL
+        AND EXISTS (
+          SELECT 1
+          FROM ojt_profiles p
+          WHERE p.user_id = a.user_id
+            AND p.supervisor_id = $3
+        )
+      RETURNING
+        a.id,
+        a.user_id,
+        a.review_status,
+        a.supervisor_comment,
+        a.reviewed_at,
+        a.reviewed_by
+      `,
+      [
+        status,
+        supervisorComment,
+        supervisorId,
+        attendanceId,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Report not found, not submitted, already reviewed, or not assigned to you.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message:
+        status === "APPROVED"
+          ? "Daily report approved successfully."
+          : "Daily report rejected successfully.",
+      record: result.rows[0],
+    });
+
+  } catch (error) {
+    console.error("Daily review error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to save daily report review.",
+    });
+  }
+};
+
 module.exports = {
   getSupervisorAccomplishments,
+  reviewSupervisorAccomplishment,
 };

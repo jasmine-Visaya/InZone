@@ -1125,6 +1125,7 @@ onUnmounted(() => {
         <!-- PAGE HEADER -->
         <header class="page-header">
           <div>
+            <span class="section-kicker"> STUDENT TRACK CENTER</span>
             <h1>
               Track & Attendance<span>.</span>
             </h1>
@@ -2923,4 +2924,54 @@ button:not(:disabled):active {
 .report-photo-item { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .report-photo-item img { width: 100%; height: 160px; object-fit: contain; border-radius: 12px; background: #f1f5f2; }
 .report-photo-item button { align-self: center; }
+
+/* UNIFIED STUDENT / ADMIN DESIGN — visual-only overrides */
+.track-content { --background: #f1f8f4; --color: #153b30; }
+.track-container { max-width: 1220px; padding: 22px clamp(18px,4vw,48px) calc(140px + env(safe-area-inset-bottom,0px)); }
+.section-kicker { display:inline-flex;align-items:center;gap:7px;color:#0b8a63;font-size:11px;letter-spacing:1.35px;font-weight:850; }
+.section-kicker ion-icon {font-size:15px}
+.page-header {align-items:center;gap:16px;margin-bottom:24px;}
+.page-header h1 {font-size:clamp(30px,4vw,43px);font-weight:850;letter-spacing:-1.2px;margin:12px 0 7px;line-height:1.15;}
+.page-header p {font-size:14px;color:#788f81;line-height:1.6;max-width:630px;}
+.header-icon {background:#e5f5eb;border:1px solid #d1eadb;border-radius:15px;width:50px;height:50px;}
+.track-card,.approval-loading-card,.approval-locked-card {background:#fff;border:1px solid #deebe3;border-radius:20px;box-shadow:0 8px 26px #164d3509;}
+.track-card {margin-bottom:18px;padding:clamp(18px,2.8vw,28px);}
+.card-heading {gap:12px;flex-wrap:wrap;}
+.card-heading h2 {color:#1a4334;font-size:17px;font-weight:800;letter-spacing:-.25px;}
+.heading-left {min-width:0;}
+.heading-left ion-icon {color:#0b8a63;}
+.primary-button,.view-profile-button,.timein-button,.upload-report-button {background:#0b7959;color:white;border-radius:11px;font-weight:800;box-shadow:none;}
+.camera-button,.refresh-status-button,.refresh-attendance {border-radius:11px;font-weight:800;}
+.track-card button,.approval-locked-card button {min-height:43px;transition:filter .18s,transform .18s,background .18s;}
+.track-card button:not(:disabled):active,.approval-locked-card button:not(:disabled):active {transform:scale(.99)}
+.track-card button:focus-visible,.approval-locked-card button:focus-visible {outline:3px solid #61c99e;outline-offset:2px}
+.gps-details,.distance-grid,.attendance-times {gap:12px;}
+.info-tile,.time-tile {background:#f7fbf8;border:1px solid #e3eee7;border-radius:13px;min-width:0;}
+.info-tile strong,.time-tile strong {overflow-wrap:anywhere;}
+.photo-area {border-radius:14px;overflow:hidden;}
+.report-photo-grid {grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;}
+.report-photo-item {min-width:0;}
+.report-photo-item img {max-width:100%;}
+.security-note {border-radius:14px;line-height:1.65;}
+.approved-banner {border-radius:14px;}
+@media(max-width:600px) {
+ .track-container {padding:17px 13px calc(125px + env(safe-area-inset-bottom,0px));}
+ .page-header {align-items:flex-start;gap:9px;}
+ .page-header h1 {font-size:30px;}
+ .page-header p {font-size:13px;}
+ .header-icon {width:42px;height:42px;font-size:21px;}
+ .track-card {padding:17px 15px;border-radius:16px;}
+ .card-heading h2 {font-size:15px;line-height:1.4;}
+ .card-heading {align-items:flex-start;}
+ .approval-locked-card {padding:26px 17px;}
+ .gps-details {grid-template-columns:repeat(auto-fit,minmax(115px,1fr));}
+ .report-photo-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+ .report-photo-item img {height:130px;}
+}
+@media(max-width:360px) {
+ .track-container {padding-left:11px;padding-right:11px;}
+ .page-header h1 {font-size:27px;}
+ .header-icon {display:none;}
+ .distance-grid,.attendance-times {grid-template-columns:1fr;}
+}
 </style>

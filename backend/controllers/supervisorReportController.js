@@ -1,23 +1,25 @@
 
 const pool = require("../src/config/database");
+const supabase = require("../src/config/supabase");
 
 // A supervisor can only see and review reports of the students
 // assigned to them (ojt_profiles.supervisor_id).
 const REPORT_COLUMNS = `
-    wr.id,
-    wr.user_id,
-    u.first_name,
-    u.last_name,
-    u.email,
-    p.company_name,
-    wr.week_start::text AS week_start,
-    wr.week_end::text AS week_end,
-    wr.report,
-    wr.status,
-    wr.supervisor_comment,
-    wr.supervisor_id,
-    wr.reviewed_at,
-    wr.created_at
+  wr.id,
+  wr.user_id,
+  u.first_name,
+  u.last_name,
+  u.email,
+  p.company_name,
+  wr.week_start::text AS week_start,
+  wr.week_end::text AS week_end,
+  wr.report,
+  wr.selected_photo_paths,
+  wr.status,
+  wr.supervisor_comment,
+  wr.supervisor_id,
+  wr.reviewed_at,
+  wr.created_at
 `;
 
 const MAX_COMMENT_LENGTH = 2000;
@@ -192,8 +194,85 @@ const reviewReport = async (req, res) => {
     }
 };
 
+
+const getWeeklyReportPhotos = async (req, res) => {
+  try {
+    const supervisorId = req.user.id;
+    const { reportId } = req.params;
+
+    const result = await pool.query(
+      `SELECT
+         wr.id,
+         wr.selected_photo_paths
+       FROM weekly_reports wr
+       WHERE wr.id = $1
+         AND EXISTS (
+           SELECT 1
+           FROM ojt_profiles p
+           WHERE p.user_id = wr.user_id
+             AND p.supervisor_id = $2
+         )
+       LIMIT 1`,
+      [reportId, supervisorId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Weekly report not found or access denied.",
+      });
+    }
+
+    const report = result.rows[0];
+
+    const paths = Array.isArray(report.selected_photo_paths)
+      ? report.selected_photo_paths.filter(
+          (path) => typeof path === "string" && path.trim()
+        )
+      : [];
+
+    const storage = supabase.storage.from("ojt-photo-proofs");
+
+    const photos = [];
+
+    for (const path of paths) {
+      const { data, error } = await storage.createSignedUrl(
+        path,
+        300
+      );
+
+      if (error || !data?.signedUrl) {
+        console.error("Weekly photo signed URL error:", error);
+        continue;
+      }
+
+      photos.push({
+        path,
+        photo_url: data.signedUrl,
+      });
+    }
+
+    return res.json({
+      success: true,
+      report_id: report.id,
+      count: photos.length,
+      photos,
+      expires_in_seconds: 300,
+    });
+  } catch (error) {
+    console.error("Get weekly report photos error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to retrieve weekly report photos.",
+    });
+  }
+};
+
+
 module.exports = {
-    getPendingReports,
-    getMyStudentsReports,
-    reviewReport
+  getPendingReports,
+  getMyStudentsReports,
+  reviewReport,
+  getWeeklyReportPhotos,
 };

@@ -7,6 +7,7 @@ import {
   IonContent,
   IonIcon,
   IonSpinner,
+  IonModal,
   onIonViewWillEnter,
 } from '@ionic/vue';
 
@@ -73,6 +74,10 @@ interface ReportRecord {
 
   accomplishment_uploaded: boolean;
   accomplishment_uploaded_at: string | null;
+  accomplishment_text?: string | null;
+  review_status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  supervisor_comment?: string | null;
+  reviewed_at?: string | null;
 }
 
 interface Summary {
@@ -101,6 +106,8 @@ interface PhotoResponse {
   photo_url?: string;
   signed_url?: string;
   url?: string;
+  photos?: Array<{ photo_url?: string; signed_url?: string; url?: string }>;
+  accomplishment_text?: string | null;
 }
 
 // =====================================
@@ -140,8 +147,68 @@ const selectedDate = ref('');
 
 const selectedRecord = ref<ReportRecord | null>(null);
 const previewPhoto = ref('');
+const previewPhotos = ref<string[]>([]);
+const previewText = ref('');
 const previewLoading = ref(false);
 const previewError = ref('');
+// Daily review state (mirrors Weekly Reports)
+type ReviewDecision = 'APPROVED' | 'REJECTED';
+const reviewComment = ref('');
+const reviewDecision = ref<ReviewDecision | null>(null);
+const reviewSaving = ref(false);
+const reviewError = ref('');
+const reviewSuccess = ref('');
+function dailyReviewStatus(record: ReportRecord): string {
+  return record.review_status || 'PENDING';
+}
+function requestDailyReview(decision: ReviewDecision) {
+  reviewError.value = '';
+  if (decision === 'REJECTED' && !reviewComment.value.trim()) {
+    reviewError.value = 'Please add a comment explaining what the student needs to fix.';
+    return;
+  }
+  reviewDecision.value = decision;
+}
+async function saveDailyReview() {
+  const record = selectedRecord.value;
+  const decision = reviewDecision.value;
+  if (!record || !decision || reviewSaving.value) return;
+  reviewSaving.value = true;
+  reviewError.value = '';
+  try {
+    const token = getToken();
+    if (!token) throw new Error('Session expired. Please log in again.');
+    const response = await fetch(
+      `${API_URL}/api/supervisor/accomplishments/${encodeURIComponent(String(record.id))}/review`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: decision,
+          supervisor_comment: reviewComment.value.trim(),
+        }),
+      }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || `Review could not be saved (${response.status}).`);
+    const updated = data.record || data.attendance || {};
+    records.value = records.value.map((item) => String(item.id) === String(record.id)
+      ? { ...item, review_status: updated.review_status || decision,
+          supervisor_comment: updated.supervisor_comment ?? reviewComment.value.trim(),
+          reviewed_at: updated.reviewed_at || new Date().toISOString() }
+      : item);
+    reviewSuccess.value = decision === 'APPROVED' ? 'Daily report approved.' : 'Daily report rejected.';
+    reviewSaving.value = false;
+    closePreview();
+    void loadReports(pagination.value.page);
+  } catch (err) {
+    reviewError.value = err instanceof Error ? err.message : 'Unable to save review.';
+    reviewDecision.value = null;
+  } finally {
+    reviewSaving.value = false;
+  }
+}
+
 
 let listRequestId = 0;
 let photoRequestId = 0;
@@ -384,7 +451,13 @@ async function openPhoto(
   const requestId = ++photoRequestId;
 
   selectedRecord.value = record;
+  reviewComment.value = '';
+  reviewDecision.value = null;
+  reviewError.value = '';
+  reviewSuccess.value = '';
   previewPhoto.value = '';
+  previewPhotos.value = [];
+  previewText.value = record.accomplishment_text || '';
   previewError.value = '';
   previewLoading.value = true;
 
@@ -410,6 +483,10 @@ async function openPhoto(
     }
 
     previewPhoto.value = photoUrl;
+    previewPhotos.value = Array.isArray(response.photos)
+      ? response.photos.map(p => p.photo_url || p.signed_url || p.url || '').filter(Boolean)
+      : [photoUrl];
+    previewText.value = response.accomplishment_text ?? record.accomplishment_text ?? '';
 
   } catch (cause) {
     if (requestId !== photoRequestId) return;
@@ -427,10 +504,15 @@ async function openPhoto(
 }
 
 function closePreview() {
+  if (reviewSaving.value) return;
+  reviewDecision.value = null;
+  reviewError.value = '';
   photoRequestId++;
 
   selectedRecord.value = null;
   previewPhoto.value = '';
+  previewPhotos.value = [];
+  previewText.value = '';
   previewLoading.value = false;
   previewError.value = '';
 }
@@ -853,7 +935,7 @@ onUnmounted(() => {
               >
                 <IonIcon :icon="eyeOutline" />
 
-                View Photo
+                View Report
               </button>
             </div>
           </article>
@@ -914,109 +996,87 @@ onUnmounted(() => {
       </main>
     </IonContent>
 
-    <!-- PHOTO PREVIEW MODAL -->
-    <div
-      v-if="selectedRecord"
-      class="preview-overlay"
-      @click.self="closePreview"
+    <!-- WEEKLY-STYLE DAILY REPORT DETAILS -->
+    <IonModal
+      :is-open="selectedRecord !== null"
+      class="daily-weekly-modal"
+      :backdrop-dismiss="!reviewSaving"
+      @didDismiss="closePreview"
     >
-      <section
-        class="preview-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Accomplishment report photo"
-      >
-        <!-- PREVIEW HEADER -->
-        <div class="preview-header">
-          <div>
-            <span>
-              DAILY ACCOMPLISHMENT
-            </span>
-
-            <h2>
-              {{ selectedRecord.student_name }}
-            </h2>
-
-            <p>
-              {{
-                formatDate(
-                  selectedRecord.attendance_date
-                )
-              }}
-            </p>
+      <div v-if="selectedRecord" class="weekly-modal-shell">
+        <header class="weekly-modal-header">
+          <span class="weekly-avatar">{{ studentInitials(selectedRecord) }}</span>
+          <div class="weekly-modal-title">
+            <h2>{{ selectedRecord.student_name }}</h2>
+            <p>{{ selectedRecord.company_name }}</p>
           </div>
+          <button type="button" class="weekly-modal-close" aria-label="Close report"
+            :disabled="reviewSaving" @click="closePreview"><IonIcon :icon="closeOutline" /></button>
+        </header>
 
-          <button
-            type="button"
-            class="close-preview"
-            aria-label="Close photo preview"
-            @click="closePreview"
-          >
-            <IonIcon
-              :icon="closeOutline"
-            />
-          </button>
+        <div class="weekly-modal-scroll">
+          <div class="weekly-meta">
+            <div><span>Date</span><strong>{{ formatDate(selectedRecord.attendance_date) }}</strong></div>
+            <div><span>Time in</span><strong>{{ formatTime(selectedRecord.time_in) }}</strong></div>
+            <div><span>Time out</span><strong>{{ formatTime(selectedRecord.time_out) }}</strong></div>
+            <div><span>Status</span><strong class="weekly-status" :class="dailyReviewStatus(selectedRecord).toLowerCase()">
+              {{ dailyReviewStatus(selectedRecord) === 'PENDING' ? 'To review' : dailyReviewStatus(selectedRecord) }}
+            </strong></div>
+          </div>
+          <h3 class="weekly-block-title"><IonIcon :icon="timeOutline" /> Hours worked</h3>
+          <div class="weekly-report-text">{{ formatHours(selectedRecord) }}</div>
+          <h3 class="weekly-block-title"><IonIcon :icon="documentTextOutline" /> What the student accomplished</h3>
+          <div class="weekly-report-text">{{ previewText || selectedRecord.accomplishment_text || 'No description provided.' }}</div>
+          <h3 class="weekly-block-title"><IonIcon :icon="imageOutline" /> Daily accomplishment photos</h3>
+          <div v-if="previewLoading" class="weekly-photo-note"><IonSpinner name="crescent" /> Loading photos…</div>
+          <div v-else-if="previewError" class="weekly-photo-note" role="alert">
+            {{ previewError }} <button type="button" @click="openPhoto(selectedRecord)">Retry</button>
+          </div>
+          <div v-else-if="previewPhotos.length" class="weekly-photo-grid">
+            <a v-for="(photo, index) in previewPhotos" :key="index" :href="photo" target="_blank"
+              rel="noopener noreferrer" :aria-label="`View daily accomplishment photo ${index + 1}`">
+              <img :src="photo" :alt="`Daily accomplishment photo ${index + 1}`" loading="lazy" />
+            </a>
+          </div>
+          <p v-else class="weekly-photo-note">No photos available.</p>
+
+          <template v-if="dailyReviewStatus(selectedRecord) !== 'PENDING'">
+            <h3 class="weekly-block-title"><IonIcon :icon="clipboardOutline" /> Supervisor comment</h3>
+            <div class="weekly-report-text weekly-comment">{{ selectedRecord.supervisor_comment || 'No comment was added.' }}</div>
+          </template>
+          <template v-else>
+            <label class="weekly-block-title" for="daily-comment"><IonIcon :icon="clipboardOutline" /> Your comment</label>
+            <textarea id="daily-comment" v-model="reviewComment" rows="4" maxlength="2000"
+              :disabled="reviewSaving"
+              placeholder="Optional when approving. Required when rejecting: tell the student what to fix." />
+            <p class="weekly-hint">{{ reviewComment.length }} / 2000</p>
+          </template>
+          <div v-if="reviewError" class="weekly-error" role="alert">{{ reviewError }}</div>
         </div>
 
-        <!-- PREVIEW BODY -->
-        <div class="preview-body">
-          <div
-            v-if="previewLoading"
-            class="preview-loading"
-          >
-            <IonSpinner name="crescent" />
-
-            <p>Loading report photo...</p>
-          </div>
-
-          <div
-            v-else-if="previewError"
-            class="preview-loading"
-          >
-            <IonIcon
-              :icon="alertCircleOutline"
-            />
-
-            <p>
-              {{ previewError }}
-            </p>
-
-            <button
-              type="button"
-              class="search-button"
-              @click="openPhoto(selectedRecord)"
-            >
-              Retry
-            </button>
-          </div>
-
-          <img
-            v-else-if="previewPhoto"
-            :src="previewPhoto"
-            alt="Daily accomplishment photo"
-            class="report-full-image"
-          />
-        </div>
-
-        <!-- PREVIEW FOOTER -->
-        <div class="preview-footer">
-          <span>
-            <IonIcon
-              :icon="businessOutline"
-            />
-
-            {{ selectedRecord.company_name }}
-          </span>
-
-          <button
-            type="button"
-            @click="closePreview"
-          >
-            Close
-          </button>
-        </div>
-      </section>
-    </div>
+        <footer class="weekly-modal-footer">
+          <template v-if="dailyReviewStatus(selectedRecord) === 'PENDING'">
+            <template v-if="!reviewDecision">
+              <button type="button" class="weekly-btn danger-soft" :disabled="reviewSaving"
+                @click="requestDailyReview('REJECTED')"><IonIcon :icon="alertCircleOutline" /> Reject</button>
+              <button type="button" class="weekly-btn primary" :disabled="reviewSaving"
+                @click="requestDailyReview('APPROVED')"><IonIcon :icon="checkmarkCircleOutline" /> Approve</button>
+            </template>
+            <div v-else class="weekly-confirm" role="alertdialog" aria-live="assertive">
+              <p>{{ reviewDecision === 'APPROVED' ? 'Approve this daily report?' : 'Reject this daily report? The student will see your comment.' }}</p>
+              <div>
+                <button type="button" class="weekly-btn ghost" :disabled="reviewSaving" @click="reviewDecision = null">Cancel</button>
+                <button type="button" class="weekly-btn" :class="reviewDecision === 'APPROVED' ? 'primary' : 'danger'"
+                  :disabled="reviewSaving" @click="saveDailyReview">
+                  {{ reviewSaving ? 'Saving…' : reviewDecision === 'APPROVED' ? 'Yes, approve' : 'Yes, reject' }}
+                </button>
+              </div>
+            </div>
+          </template>
+          <button v-else type="button" class="weekly-btn soft" @click="closePreview">Done</button>
+        </footer>
+      </div>
+    </IonModal>
 
     <!-- IMPORTANT: SUPERVISOR BOTTOM NAV -->
     <SupervisorBottomNav />
@@ -1025,6 +1085,90 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+
+/* Daily details styled to match the Supervisor Weekly Reports review modal */
+.daily-weekly-modal { --width: min(640px, calc(100% - 24px)); --height: min(88vh, 780px); --border-radius: 22px; }
+.weekly-modal-shell { display:flex; flex-direction:column; height:100%; background:#fff; color:#173e2e; }
+.weekly-modal-header { display:flex; align-items:center; gap:12px; padding:18px 20px; border-bottom:1px solid #e5eee7; }
+.weekly-avatar { width:44px; height:44px; flex-shrink:0; display:grid; place-items:center; border-radius:13px; background:#e3f4e8; color:#0d7b59; font-size:14px; font-weight:850; }
+.weekly-modal-title { flex:1; min-width:0; }
+.weekly-modal-title h2 { margin:0; font-size:18px; overflow-wrap:anywhere; font-weight:800; }
+.weekly-modal-title p { margin:3px 0 0; font-size:12px; color:#82988a; overflow-wrap:anywhere; }
+.weekly-modal-close { display:grid; place-items:center; width:38px; height:38px; flex-shrink:0; border:0; border-radius:11px; background:#eef6f0; color:#557b61; font-size:20px; cursor:pointer; }
+.weekly-modal-scroll { flex:1; min-height:0; overflow-y:auto; padding:18px 20px; }
+.weekly-meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-bottom:20px; }
+.weekly-meta > div { padding:11px 12px; border:1px solid #e3eee7; border-radius:12px; min-width:0; }
+.weekly-meta span { display:block; margin-bottom:5px; color:#83978a; font-size:11px; }
+.weekly-meta strong { color:#33503f; font-size:13px; overflow-wrap:anywhere; }
+.weekly-status { display:inline-block; border-radius:20px; padding:5px 9px; background:#fff3db; color:#9b6c12!important; }
+.weekly-status.approved { background:#e0f5e9; color:#08784b!important; }
+.weekly-status.rejected { background:#ffe9e7; color:#ae3834!important; }
+.weekly-block-title { display:flex; align-items:center; gap:7px; margin:0 0 9px; color:#173e2e; font-size:14px; font-weight:800; }
+.weekly-block-title ion-icon { color:#0b7959; font-size:18px; }
+.weekly-report-text { margin-bottom:20px; padding:15px 16px; border-radius:13px; background:#f7fbf8; border:1px solid #e3eee7; color:#33503f; font-size:14px; line-height:1.75; white-space:pre-wrap; overflow-wrap:anywhere; }
+.weekly-comment { background:#fffdf6; border-color:#efe3c4; }
+.weekly-photo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(115px,1fr)); gap:10px; margin:0 0 20px; }
+.weekly-photo-grid a { display:block; border-radius:12px; overflow:hidden; border:1px solid #e3eee7; aspect-ratio:1; }
+.weekly-photo-grid img { display:block; width:100%; height:100%; object-fit:cover; }
+.weekly-photo-note { color:#657d70; font-size:13px; margin:0 0 20px; }
+.weekly-photo-note button { margin-left:8px; color:#0a8060; font-weight:700; }
+.weekly-modal-scroll textarea { display:block; width:100%; box-sizing:border-box; resize:vertical; min-height:104px; padding:12px 13px; border:1px solid #d5e5da; border-radius:12px; background:#fbfdfb; color:#173e2e; font:inherit; font-size:14px; line-height:1.55; }
+.weekly-modal-scroll textarea:focus { border-color:#0b7959; outline:none; box-shadow:0 0 0 3px #0b795917; }
+.weekly-hint { margin:6px 0 14px; text-align:right; font-size:11px; color:#9aaca1; }
+.weekly-error { margin:10px 0; padding:12px; border-radius:10px; background:#fff0ee; color:#ae3834; font-size:13px; }
+.weekly-modal-footer { display:flex; justify-content:flex-end; gap:10px; padding:14px 20px calc(14px + env(safe-area-inset-bottom,0px)); border-top:1px solid #e5eee7; }
+.weekly-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-width:130px; padding:11px 16px; border:0; border-radius:11px; font-size:13px; font-weight:800; cursor:pointer; }
+.weekly-btn:disabled { opacity:.55; cursor:wait; }
+.weekly-btn.primary { background:#0b7959; color:#fff; }
+.weekly-btn.danger-soft { background:#fff0ee; color:#ae3834; }
+.weekly-btn.danger { background:#b83d3d; color:#fff; }
+.weekly-btn.ghost,.weekly-btn.soft { background:#eef6f0; color:#39674b; }
+.weekly-confirm { width:100%; }
+.weekly-confirm p { margin:0 0 10px; font-size:13px; font-weight:700; color:#173e2e; }
+.weekly-confirm > div { display:flex; justify-content:flex-end; gap:10px; }
+@media(max-width:520px) { .daily-weekly-modal { --width:100%; --height:94vh; } .weekly-modal-footer > .weekly-btn,.weekly-confirm .weekly-btn { flex:1; min-width:0; } }
+@media(max-width:340px) { .weekly-meta { grid-template-columns:1fr; } }
+.daily-review-toast { margin: 12px auto; max-width: 1180px; padding: 13px 18px; border-radius: 12px; background: #e4f7eb; color: #12613e; font-weight: 700; }
+.daily-review-panel { margin-top: 24px; padding: 20px; background: #fff; border: 1px solid #e2ede6; border-radius: 17px; }
+.daily-review-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.daily-review-heading h3 { margin: 0; font-size: 17px; font-weight: 800; color: #173e2f; }
+.daily-review-badge { border-radius: 100px; padding: 7px 11px; font-size: 11px; font-weight: 800; background: #fff3db; color: #9b6c12; }
+.daily-review-badge.approved { background: #e0f5e9; color: #08784b; }
+.daily-review-badge.rejected { background: #ffe9e7; color: #ae3834; }
+.daily-review-panel label { display: block; margin-bottom: 9px; color: #365846; font-size: 13px; font-weight: 750; }
+.daily-review-panel textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 95px; padding: 13px 14px; border: 1px solid #d9e7de; border-radius: 12px; background: #f9fcfa; color: #234a35; font: inherit; font-size: 13px; line-height: 1.6; outline: none; }
+.daily-review-panel textarea:focus { border-color: #16966d; }
+.daily-review-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.daily-btn { border: 0; border-radius: 11px; padding: 12px 17px; font-weight: 800; font-size: 13px; cursor: pointer; }
+.daily-btn:disabled { opacity: .6; cursor: wait; }
+.daily-btn.approve { background: #087c58; color: #fff; }
+.daily-btn.danger { background: #c64040; color: #fff; }
+.daily-btn.danger-outline { background: #fff0ee; color: #b33e3e; }
+.daily-btn.secondary { background: #eef4ef; color: #43604f; }
+.daily-review-confirm { margin-top: 14px; padding: 14px; background: #f6faf7; border: 1px solid #e2ede6; border-radius: 12px; }
+.daily-review-confirm p { margin: 0; color: #355744; font-size: 13px; }
+.daily-review-error { color: #b33e3e; font-size: 12px; margin-top: 9px; }
+.daily-reviewed-feedback { padding: 14px; border-radius: 12px; background: #f6faf7; }
+.daily-reviewed-feedback span { color: #72877a; font-size: 11px; font-weight: 700; }
+.daily-reviewed-feedback p { color: #254936; margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.daily-reviewed-feedback small { color: #82958a; }
+@media (max-width: 520px) { .daily-review-panel { padding: 14px; } .daily-review-actions { flex-direction: column-reverse; } .daily-review-actions .daily-btn { width: 100%; } }
+/* Daily report details: same clean review style as Weekly Reports */
+.daily-report-details { width: 100%; min-width: 0; padding: 20px; box-sizing: border-box; }
+.daily-meta { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; margin-bottom: 22px; }
+.daily-meta > div { padding: 12px 14px; border: 1px solid #e3eee7; border-radius: 12px; background: #fff; min-width: 0; }
+.daily-meta span { display: block; margin-bottom: 6px; color: #82958a; font-size: 11px; font-weight: 600; }
+.daily-meta strong { color: #244c39; font-size: 13px; overflow-wrap: anywhere; }
+.daily-block-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: #193e31; font-size: 14px; font-weight: 800; }
+.daily-block-title ion-icon { color: #0b8060; font-size: 18px; }
+.daily-description { margin-bottom: 22px; padding: 15px 16px; border: 1px solid #e3eee7; border-radius: 13px; background: #f7fbf8; color: #33503f; font-size: 14px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.daily-photo-count { margin-left: auto; border-radius: 20px; background: #e8f6ed; color: #0b8260; padding: 4px 9px; font-size: 11px; }
+.daily-photo-gallery { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.daily-photo-gallery a { display: flex; flex-direction: column; min-width: 0; padding: 7px; gap: 8px; border: 1px solid #e3eee7; border-radius: 14px; background: #fff; text-decoration: none; overflow: hidden; }
+.daily-photo-gallery a:hover { border-color: #9bd2b6; }
+.daily-photo-gallery img { display: block; width: 100%; height: 180px; object-fit: contain; border-radius: 9px; background: #f2f7f3; }
+.daily-photo-gallery a span { color: #527461; font-size: 11px; font-weight: 700; padding: 0 5px 5px; }
+@media(max-width: 520px) { .daily-report-details { padding: 14px; } .daily-meta { gap: 7px; } .daily-meta > div { padding: 10px; } .daily-photo-gallery { grid-template-columns: 1fr; } .daily-photo-gallery img { height: 220px; } }
 /* =====================================
    PAGE
 ===================================== */
@@ -1765,8 +1909,8 @@ onUnmounted(() => {
   flex-direction: column;
 
   width: 100%;
-  max-width: 760px;
-  max-height: 90vh;
+  max-width: 640px;
+  max-height: 88vh;
 
   overflow: hidden;
 
@@ -1836,14 +1980,14 @@ onUnmounted(() => {
 
 .preview-body {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-start;
 
   min-height: 240px;
 
-  overflow: auto;
+  overflow-y: auto;
 
-  background: #eef3ef;
+  background: #ffffff;
 }
 
 .preview-loading {
