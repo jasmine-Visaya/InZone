@@ -144,6 +144,10 @@ const uploadingReport = ref(false);
 const todayAttendance = ref<AttendanceRecord | null>(null);
 const attendanceLoaded = ref(false);
 
+// Today's holiday / suspension (from the admin Holidays page).
+// Time Out is allowed early on these days.
+const todayHoliday = ref<{ name: string; type: string } | null>(null);
+
 const verifiedAt = ref<number | null>(null);
 const currentTime = ref(Date.now());
 
@@ -258,7 +262,7 @@ const philippineSeconds = computed(() => {
 });
 
 const isBeforeTimeOut = computed(
-  () => philippineSeconds.value < 17 * 3600
+  () => !todayHoliday.value && philippineSeconds.value < 17 * 3600
 );
 
 const timeOutCountdown = computed(() => {
@@ -658,6 +662,8 @@ async function loadAttendance() {
     todayAttendance.value = found;
     attendanceLoaded.value = true;
 
+    await loadTodayHoliday(today);
+
   } catch (err) {
     error.value =
       err instanceof Error
@@ -666,6 +672,23 @@ async function loadAttendance() {
 
   } finally {
     loadingAttendance.value = false;
+  }
+}
+
+async function loadTodayHoliday(today: string) {
+  try {
+    const result = await apiRequest(
+      `/api/holidays?from=${today}&to=${today}`
+    );
+    const holiday = Array.isArray(result.holidays)
+      ? result.holidays[0]
+      : null;
+    todayHoliday.value = holiday
+      ? { name: holiday.name, type: holiday.type }
+      : null;
+  } catch {
+    // Keep the normal 5:00 PM rule if holidays cannot be loaded.
+    todayHoliday.value = null;
   }
 }
 
@@ -1913,6 +1936,17 @@ onUnmounted(() => {
                   <p>Please wait until the scheduled time.</p>
                 </div>
               </div>
+              <div
+                v-else-if="todayHoliday"
+                class="timeout-countdown holiday"
+              >
+                <IonIcon :icon="timeOutline" />
+
+                <div>
+                  <strong>{{ todayHoliday.name }}</strong>
+                  <p>Today was declared a non-working day. You can time out now.</p>
+                </div>
+              </div>
               <button
                 type="button"
                 class="timeout-button"
@@ -3025,6 +3059,12 @@ button:not(:disabled):active {
  .page-header h1 {font-size:27px;}
  .header-icon {display:none;}
  .distance-grid,.attendance-times {grid-template-columns:1fr;}
+}
+
+.timeout-countdown.holiday {
+  background: #e7f2ff;
+  border-color: #c9dcf4;
+  color: #28649a;
 }
 
 .timeout-countdown {
