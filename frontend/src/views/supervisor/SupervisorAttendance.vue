@@ -24,6 +24,7 @@ import {
 import InZoneTopbar from '@/components/InZoneTopbar.vue';
 import SupervisorBottomNav from './SupervisorBottomNav.vue';
 import SupervisorPhotoProof from './SupervisorPhotoProof.vue';
+import OvertimeReview from './OvertimeReview.vue';
 import {
   supervisorRequest,
   errorMessage,
@@ -301,8 +302,23 @@ onIonViewWillEnter(() => {
                 <IonIcon :icon="cameraOutline" />
               </button>
               <span v-else class="photo-btn is-empty" aria-hidden="true"></span>
+
+              <OvertimeReview
+                v-if="record.attendance_id !== null && (record.overtime_hours ?? 0) > 0 && record.overtime_status && record.overtime_status !== 'NONE'"
+                class="row-ot"
+                :attendance-id="record.attendance_id"
+                :overtime-hours="record.overtime_hours ?? 0"
+                :status="record.overtime_status"
+                :comment="record.overtime_comment"
+                @updated="loadAttendance"
+              />
             </li>
           </ul>
+
+          <p v-if="data && data.records.some((r) => (r.overtime_hours ?? 0) > 0)" class="note">
+            Hours shown count up to 8 regular hours a day. Overtime beyond that only counts
+            toward the student's required hours once you approve it.
+          </p>
 
           <p v-if="data && data.summary.no_time_out" class="note">
             "No time-out" means the student timed in on {{ formatDate(date) }} but never timed out,
@@ -565,6 +581,10 @@ onIonViewWillEnter(() => {
   border-radius: 14px;
   background: #fcfefd;
   overflow: hidden;
+}
+
+.row-ot {
+  grid-column: 1 / -1;
 }
 
 .row::before {

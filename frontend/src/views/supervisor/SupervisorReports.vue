@@ -25,10 +25,13 @@ import {
   documentTextOutline,
   imageOutline,
   chatbubbleEllipsesOutline,
+  timeOutline,
 } from 'ionicons/icons';
 
 import InZoneTopbar from '@/components/InZoneTopbar.vue';
 import SupervisorBottomNav from './SupervisorBottomNav.vue';
+import WeeklyReportData from '@/components/WeeklyReportData.vue';
+import { isWeekSummary } from '@/utils/weeklySummary';
 import {
   supervisorRequest,
   errorMessage,
@@ -361,6 +364,11 @@ onIonViewWillEnter(() => {
             </div>
             <div v-if="!isPending"><span>Reviewed</span><strong>{{ formatDateTime(selected.reviewed_at) }}</strong></div>
           </div>
+
+          <template v-if="isWeekSummary(selected.summary)">
+            <h3 class="block-title"><IonIcon :icon="timeOutline" /> Hours and attendance this week</h3>
+            <WeeklyReportData :summary="selected.summary" snapshot />
+          </template>
 
           <h3 class="block-title"><IonIcon :icon="documentTextOutline" /> What the student did this week</h3>
           <div class="report-text">{{ selected.report || 'No report text provided.' }}</div>

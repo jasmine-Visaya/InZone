@@ -91,6 +91,19 @@ export type AttendanceStatus =
 
 export type ReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+// NONE = no overtime that day; PENDING = waiting for supervisor.
+export type OvertimeStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+// Overtime fields on attendance rows. hours_worked = hours that count
+// (regular, max 8/day, + approved overtime). raw_hours = time in to out.
+export interface OvertimeFields {
+  raw_hours?: number;
+  overtime_hours?: number;
+  overtime_status?: OvertimeStatus;
+  overtime_comment?: string | null;
+  overtime_reviewed_at?: string | null;
+}
+
 export interface DashboardSummary {
   assigned_students: number;
   timed_in_today: number;
@@ -98,6 +111,7 @@ export interface DashboardSummary {
   missing_time_out: number;
   pending_reports: number;
   reviewed_by_me: number;
+  pending_overtime?: number;
 }
 
 export interface SupervisedStudent {
@@ -128,7 +142,7 @@ export interface SupervisedStudent {
   progress_percent: number;
 }
 
-export interface StudentAttendance {
+export interface StudentAttendance extends OvertimeFields {
   id: Id;
   attendance_date: string;
   time_in: string | null;
@@ -140,7 +154,7 @@ export interface StudentAttendance {
   hours_worked: number;
 }
 
-export interface DailyAttendance {
+export interface DailyAttendance extends OvertimeFields {
   student_id: string;
   first_name: string | null;
   last_name: string | null;
@@ -183,6 +197,8 @@ export interface WeeklyReport {
   supervisor_id: string | null;
   reviewed_at: string | null;
   created_at: string | null;
+  // Hours / OT / attendance data saved when the student submitted.
+  summary?: import('@/utils/weeklySummary').WeekSummary | null;
 }
 
 export interface SupervisorProfile {

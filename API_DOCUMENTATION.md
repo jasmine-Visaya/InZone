@@ -196,6 +196,14 @@ All three fields are required. The report is submitted with a pending status for
 
 Returns the signed-in user's reports and their review status.
 
+### Week preview (hours, OT, attendance, unlock status)
+
+**GET** `/api/weekly-reports/preview?date=YYYY-MM-DD`
+
+Any date in the week. Returns `summary` (per-day time in/out, regular hours, overtime and its status, days present/absent/holiday, progress toward required hours, `can_submit`, `lock_reason`, `suggested_report`) and `existing_report`.
+
+A weekly report covers Monday to Sunday and can only be submitted **after the student times out on the week's last working day**. Holidays are skipped, so if Friday is a holiday the report opens after Thursday's time out. `POST /submit` returns `403 WEEK_NOT_FINISHED` before then, and saves the week's data as `summary` on the report.
+
 ## 7. Supervisor Reports
 
 Both endpoints require a valid JWT and supervisor-role authorization.
@@ -220,6 +228,29 @@ Example request:
 ```
 
 The `status` must be `APPROVED` or `REJECTED`. The review operation should only update reports that are still pending.
+
+## 8. Overtime and Holidays
+
+### Overtime
+
+Hours are split per day into **regular** (up to `REGULAR_DAILY_HOURS`, default 8) and **overtime** (anything beyond). Overtime counts toward required hours only after the supervisor approves it. `hours_worked` / `total_hours` / `hours_rendered` everywhere now mean *regular + approved overtime*; attendance rows also return `overtime_hours` and `overtime_status` (`NONE`, `PENDING`, `APPROVED`, `REJECTED`).
+
+**PATCH** `/api/supervisor/attendance/:attendanceId/overtime` (supervisor of that student)
+
+```json
+{ "decision": "APPROVED", "comment": "Stayed for inventory" }
+```
+
+### Holidays
+
+- **GET** `/api/holidays?year=2026` or `?from=YYYY-MM-DD&to=YYYY-MM-DD` (any logged-in user)
+- **POST** `/api/holidays` `{ "holiday_date", "name", "type" }` (admin)
+- **PUT** `/api/holidays/:id` (admin)
+- **DELETE** `/api/holidays/:id` (admin)
+
+`type`: `REGULAR`, `SPECIAL_NON_WORKING`, `SUSPENSION`, `LOCAL`. Backend helper for other features: `const { getHoliday } = require("./utils/holidays"); await getHoliday("2026-11-30")` returns the holiday or `null`.
+
+Working weekdays default to Monday–Friday (`WORK_DAYS=1,2,3,4,5`).
 
 ## General Notes
 

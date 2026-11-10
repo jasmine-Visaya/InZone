@@ -19,7 +19,8 @@ const REPORT_COLUMNS = `
   wr.supervisor_comment,
   wr.supervisor_id,
   wr.reviewed_at,
-  wr.created_at
+  wr.created_at,
+  wr.summary
 `;
 
 const MAX_COMMENT_LENGTH = 2000;

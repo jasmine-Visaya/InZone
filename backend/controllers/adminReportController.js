@@ -1,11 +1,14 @@
 const pool = require("../src/config/database");
+const { workHoursSql } = require("../utils/workHours");
+
+const HOURS = workHoursSql("a.");
 const supabase = require("../src/config/supabase");
 
 const getAllWeeklyReports = async (_req, res) => {
   try {
     const result = await pool.query(`
       SELECT wr.id, wr.user_id, u.first_name, u.last_name, u.email,
-        wr.week_start, wr.week_end, wr.report, wr.status, wr.supervisor_id,
+        wr.week_start, wr.week_end, wr.report, wr.status, wr.supervisor_id, wr.summary,
         wr.supervisor_comment, wr.reviewed_at, wr.created_at
       FROM weekly_reports wr
       JOIN users u ON u.id = wr.user_id
@@ -113,8 +116,10 @@ const getDailyReports = async (req, res) => {
         (a.accomplishment_photo_path IS NOT NULL) AS accomplishment_uploaded,
         (a.photo_proof_path IS NOT NULL) AS time_in_photo_uploaded,
         CASE WHEN a.time_out IS NOT NULL AND a.time_in IS NOT NULL
-          THEN ROUND(EXTRACT(EPOCH FROM (a.time_out-a.time_in))/3600.0,2)
+          THEN ROUND((${HOURS.credited})::numeric/3600.0,2)
           ELSE NULL END AS hours_worked,
+        ROUND((${HOURS.overtime})::numeric/3600.0,2) AS overtime_hours,
+        ${HOURS.overtimeStatus} AS overtime_status,
         u.first_name, u.last_name, u.email,
         p.company_name, p.company_address
         ${from}
