@@ -518,16 +518,10 @@ const uploadAccomplishmentReport = async (req, res) => {
 
     const today = getPhilippineDate();
 
-    // Check if today is a holiday
+    // Holiday declared today. A student who already timed in
+    // (e.g. a suspension announced mid-day) can still upload the
+    // report so they can time out; the lookup below needs a time-in.
     const holiday = await isHoliday(today);
-
-    if (holiday) {
-      return res.status(403).json({
-        success: false,
-        code: "HOLIDAY",
-        message: `${holiday.holiday_name}. No attendance is required today.`,
-      });
-    }
 
     const attendanceId = req.params.attendanceId;
 
@@ -544,6 +538,14 @@ const uploadAccomplishmentReport = async (req, res) => {
     );
 
     if (!lookup.rows.length) {
+      if (holiday) {
+        return res.status(403).json({
+          success: false,
+          code: "HOLIDAY",
+          message: `${holiday.holiday_name}. No attendance is required today.`,
+        });
+      }
+
       return res.status(404).json({
         success: false,
         message: "Today's attendance record not found.",
@@ -863,18 +865,33 @@ const timeOut = async (req, res) => {
       const holiday = await isHoliday(today);
 
       if (holiday) {
-        return res.status(403).json({
-          success: false,
-          code: "HOLIDAY",
-          message: `${holiday.holiday_name}. No attendance is required today.`,
-        });
+        // A holiday or suspension declared after the student timed in:
+        // let them time out early instead of leaving the day open.
+        const openRecord = await pool.query(
+          `SELECT 1
+           FROM attendance
+           WHERE user_id = $1
+             AND attendance_date = $2
+             AND time_in IS NOT NULL
+             AND time_out IS NULL
+           LIMIT 1`,
+          [req.user.id, today]
+        );
+
+        if (openRecord.rows.length === 0) {
+          return res.status(403).json({
+            success: false,
+            code: "HOLIDAY",
+            message: `${holiday.holiday_name}. No attendance is required today.`,
+          });
+        }
       }
 
-      // Check Philippine time
+      // Check Philippine time (skipped on holidays: early time out allowed)
       const currentTime = getPhilippineTime();
       const requiredTime = 17 * 60;
 
-      if (currentTime.minutes < requiredTime) {
+      if (!holiday && currentTime.minutes < requiredTime) {
         const remainingSeconds =
           (requiredTime - currentTime.minutes) * 60 -
           currentTime.second;
