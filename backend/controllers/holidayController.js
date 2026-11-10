@@ -1,6 +1,15 @@
 const pool = require("../src/config/database");
 const { isValidDate, getHolidaysBetween } = require("../utils/holidays");
 
+// Holiday ids can be numbers or UUIDs depending on how the table was created.
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function readId(value) {
+  const id = String(value || "").trim();
+  return /^\d+$/.test(id) || UUID_PATTERN.test(id) ? id : null;
+}
+
 const HOLIDAY_TYPES = ["REGULAR", "SPECIAL_NON_WORKING", "SUSPENSION", "LOCAL"];
 
 function readHolidayBody(body = {}) {
@@ -21,7 +30,7 @@ async function dateTaken(date, exceptId = null) {
   const result = await pool.query(
     `SELECT 1 FROM holidays
      WHERE holiday_date = $1::date
-       AND ($2::bigint IS NULL OR id <> $2::bigint)
+       AND ($2::text IS NULL OR id::text <> $2::text)
      LIMIT 1`,
     [date, exceptId]
   );
@@ -104,8 +113,8 @@ const createHoliday = async (req, res) => {
 // PUT /api/holidays/:id
 // =====================================
 const updateHoliday = async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = readId(req.params.id);
+  if (!id) {
     return res.status(400).json({ success: false, message: "Invalid holiday ID." });
   }
 
@@ -120,7 +129,7 @@ const updateHoliday = async (req, res) => {
     const result = await pool.query(
       `UPDATE holidays
        SET holiday_date = $1::date, holiday_name = $2, holiday_type = $3, updated_at = NOW()
-       WHERE id = $4
+       WHERE id::text = $4::text
        RETURNING ${SELECT_COLUMNS}`,
       [input.date, input.name, input.type, id]
     );
@@ -144,13 +153,13 @@ const updateHoliday = async (req, res) => {
 // DELETE /api/holidays/:id
 // =====================================
 const deleteHoliday = async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = readId(req.params.id);
+  if (!id) {
     return res.status(400).json({ success: false, message: "Invalid holiday ID." });
   }
 
   try {
-    const result = await pool.query(`DELETE FROM holidays WHERE id = $1 RETURNING id`, [id]);
+    const result = await pool.query(`DELETE FROM holidays WHERE id::text = $1::text RETURNING id`, [id]);
 
     if (!result.rows.length) {
       return res.status(404).json({ success: false, message: "Holiday not found." });

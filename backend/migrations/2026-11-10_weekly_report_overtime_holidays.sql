@@ -33,6 +33,42 @@ ALTER TABLE holidays
   ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
+-- The existing table may already have its own CHECK rule on holiday_type
+-- (this is what rejected the first run). Drop any such rule, convert the
+-- existing types to the ones the admin page uses, then add a matching rule.
+DO $$
+DECLARE c RECORD;
+BEGIN
+  FOR c IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'holidays'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%holiday_type%'
+  LOOP
+    EXECUTE format('ALTER TABLE holidays DROP CONSTRAINT %I', c.conname);
+  END LOOP;
+END $$;
+
+UPDATE holidays
+SET holiday_type = CASE
+  WHEN holiday_type IN ('REGULAR', 'SPECIAL_NON_WORKING', 'SUSPENSION', 'LOCAL')
+    THEN holiday_type
+  WHEN holiday_type ILIKE '%special%' OR holiday_type ILIKE '%non%'
+    THEN 'SPECIAL_NON_WORKING'
+  WHEN holiday_type ILIKE '%susp%'
+    THEN 'SUSPENSION'
+  WHEN holiday_type ILIKE '%local%'
+    THEN 'LOCAL'
+  ELSE 'REGULAR'
+END
+WHERE holiday_type IS NULL
+   OR holiday_type NOT IN ('REGULAR', 'SPECIAL_NON_WORKING', 'SUSPENSION', 'LOCAL');
+
+ALTER TABLE holidays
+  ADD CONSTRAINT holidays_holiday_type_check
+  CHECK (holiday_type IN ('REGULAR', 'SPECIAL_NON_WORKING', 'SUSPENSION', 'LOCAL'));
+
 -- 2026 national holidays, Proclamation No. 1006 (s. 2025).
 -- Eid'l Fitr / Eid'l Adha are declared separately: add them in the admin
 -- Holidays page once announced. Feb 25 (EDSA) is a special WORKING day,
