@@ -22,16 +22,16 @@ jobs:
 
     steps:
 
-      # ==========================================
-      # 1. CHECKOUT REPOSITORY
-      # ==========================================
+      # =====================================
+      # 1. CHECKOUT PROJECT
+      # =====================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ==========================================
+      # =====================================
       # 2. SETUP NODE.JS
-      # ==========================================
+      # =====================================
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -40,16 +40,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # ==========================================
+      # =====================================
       # 3. INSTALL DEPENDENCIES
-      # ==========================================
+      # =====================================
 
       - name: Install dependencies
         run: npm ci
 
-      # ==========================================
-      # 4. VERIFY INZONE ICON
-      # ==========================================
+      # =====================================
+      # 4. VERIFY INZONE APP ICON
+      # =====================================
 
       - name: Verify InZone App Icon
         run: |
@@ -60,20 +60,42 @@ jobs:
 
           npm ls @capacitor/assets --depth=0
 
-          echo "InZone app icon found!"
+          echo "InZone app icon found."
 
-      # ==========================================
-      # 5. BUILD IONIC APPLICATION
-      # ==========================================
+      # =====================================
+      # 5. VERIFY GOOGLE MAPS KEY
+      # =====================================
+
+      - name: Verify Google Maps API key
+        shell: bash
+        env:
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: |
+          if [ -z "${VITE_GOOGLE_MAPS_API_KEY:-}" ]; then
+            echo "::error::GOOGLE_MAPS_API_KEY secret is missing."
+            echo "::error::Add it in GitHub Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          echo "Google Maps API key is configured for the APK build."
+
+      # =====================================
+      # 6. BUILD FRONTEND WITH API KEY
+      #
+      # IMPORTANT:
+      # The key MUST be present here,
+      # BEFORE Capacitor sync and APK build.
+      # =====================================
 
       - name: Build Ionic application
         run: npm run build
         env:
           VITE_API_URL: https://inzone-backend.onrender.com
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
 
-      # ==========================================
-      # 6. SETUP JAVA
-      # ==========================================
+      # =====================================
+      # 7. SETUP JAVA
+      # =====================================
 
       - name: Setup Java 21
         uses: actions/setup-java@v4
@@ -81,32 +103,35 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # ==========================================
-      # 7. SETUP ANDROID SDK
-      # ==========================================
+      # =====================================
+      # 8. SETUP ANDROID SDK
+      # =====================================
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
-      # ==========================================
-      # 8. VERIFY ANDROID PROJECT
-      # ==========================================
+      # =====================================
+      # 9. VERIFY ANDROID PROJECT
+      # =====================================
 
       - name: Verify Android project
         run: |
           test -f android/gradlew
           test -f android/settings.gradle
 
-      # ==========================================
-      # 9. SYNC CAPACITOR ANDROID
-      # ==========================================
+      # =====================================
+      # 10. SYNC FRONTEND TO ANDROID
+      #
+      # Copies the newly built frontend,
+      # including the Maps API configuration.
+      # =====================================
 
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-      # ==========================================
-      # 10. GENERATE CUSTOM INZONE APP ICON
-      # ==========================================
+      # =====================================
+      # 11. GENERATE INZONE APP ICON
+      # =====================================
 
       - name: Generate InZone Android App Icon
         run: |
@@ -114,35 +139,35 @@ jobs:
             --iconBackgroundColor '#087957' \
             --iconBackgroundColorDark '#064b3c'
 
-          echo "InZone Android launcher icons generated!"
+          echo "InZone launcher icons generated."
 
-      # ==========================================
-      # 11. MAKE GRADLE EXECUTABLE
-      # ==========================================
+      # =====================================
+      # 12. MAKE GRADLE EXECUTABLE
+      # =====================================
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      # ==========================================
-      # 12. BUILD ANDROID APK
-      # ==========================================
+      # =====================================
+      # 13. BUILD ANDROID APK
+      # =====================================
 
       - name: Build Android APK
         run: |
           cd android
           ./gradlew --no-daemon assembleDebug
 
-      # ==========================================
-      # 13. RENAME APK
-      # ==========================================
+      # =====================================
+      # 14. RENAME APK
+      # =====================================
 
       - name: Rename APK
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk Inzone.apk
 
-      # ==========================================
-      # 14. UPLOAD APK
-      # ==========================================
+      # =====================================
+      # 15. UPLOAD FINISHED APK
+      # =====================================
 
       - name: Upload InZone APK
         uses: actions/upload-artifact@v4
@@ -151,11 +176,3 @@ jobs:
           path: frontend/Inzone.apk
           if-no-files-found: error
           retention-days: 30
-
-          
-      - name: Build Ionic application
-        run: npm run build
-        env:
-          VITE_API_URL: https://inzone-backend.onrender.com
-          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-
