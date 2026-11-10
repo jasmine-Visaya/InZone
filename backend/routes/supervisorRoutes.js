@@ -8,6 +8,7 @@ const {
   getMyStudents,
   getStudentDetails,
   getAttendanceByDate,
+  reviewOvertime,
   getProfile,
 } = require("../controllers/supervisorController");
 
@@ -21,6 +22,7 @@ router.get("/dashboard", getDashboard);
 router.get("/students", getMyStudents);
 router.get("/students/:studentId", getStudentDetails);
 router.get("/attendance", getAttendanceByDate);
+router.patch("/attendance/:attendanceId/overtime", reviewOvertime);
 router.get("/profile", getProfile);
 
 module.exports = router;

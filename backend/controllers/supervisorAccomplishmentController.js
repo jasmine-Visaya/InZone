@@ -1,4 +1,7 @@
 
+const { workHoursSql } = require("../utils/workHours");
+
+const HOURS = workHoursSql("a.");
 const pool = require("../src/config/database");
 
 const getSupervisorAccomplishments = async (req, res) => {
@@ -141,15 +144,16 @@ const getSupervisorAccomplishments = async (req, res) => {
           WHEN a.time_in IS NOT NULL
             AND a.time_out IS NOT NULL
           THEN ROUND(
-            EXTRACT(
-              EPOCH FROM (
-                a.time_out - a.time_in
-              )
-            ) / 3600.0,
+            (${HOURS.credited})::numeric / 3600.0,
             2
           )
           ELSE NULL
         END AS hours_worked,
+        ROUND(
+          (${HOURS.overtime})::numeric / 3600.0,
+          2
+        ) AS overtime_hours,
+        ${HOURS.overtimeStatus} AS overtime_status,
         u.first_name,
         u.last_name,
         CONCAT(

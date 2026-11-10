@@ -30,6 +30,7 @@ import InZoneTopbar from '@/components/InZoneTopbar.vue';
 import InZoneMapViewer from '@/components/InZoneMapViewer.vue';
 import SupervisorBottomNav from './SupervisorBottomNav.vue';
 import SupervisorPhotoProof from './SupervisorPhotoProof.vue';
+import OvertimeReview from './OvertimeReview.vue';
 import {
   supervisorRequest,
   errorMessage,
@@ -266,6 +267,16 @@ onIonViewWillEnter(() => {
                     <IonIcon :icon="cameraOutline" />
                   </button>
                   <span v-else class="photo-btn is-empty" aria-hidden="true"></span>
+
+                  <OvertimeReview
+                    v-if="(day.overtime_hours ?? 0) > 0 && day.overtime_status && day.overtime_status !== 'NONE'"
+                    class="day-ot"
+                    :attendance-id="day.id"
+                    :overtime-hours="day.overtime_hours ?? 0"
+                    :status="day.overtime_status"
+                    :comment="day.overtime_comment"
+                    @updated="loadStudent"
+                  />
                 </li>
               </ul>
             </template>
@@ -499,6 +510,10 @@ onIonViewWillEnter(() => {
   gap: 12px;
   padding: 12px 4px;
   border-bottom: 1px solid #edf3ef;
+}
+
+.day-ot {
+  grid-column: 1 / -1;
 }
 
 .day:last-child {

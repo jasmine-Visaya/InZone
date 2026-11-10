@@ -1,5 +1,8 @@
 const pool = require("../src/config/database");
 const { getPhilippineDate } = require("../utils/dateTime");
+const { workHoursSql, toHours } = require("../utils/workHours");
+
+const HOURS = workHoursSql("a.");
 
 // =====================================
 // HELPERS
@@ -36,13 +39,27 @@ const ATTENDANCE_STATUS_SQL = `
   END
 `;
 
-const SECONDS_WORKED_SQL = `
-  CASE
-    WHEN a.time_in IS NOT NULL AND a.time_out IS NOT NULL
-    THEN EXTRACT(EPOCH FROM (a.time_out - a.time_in))
-    ELSE 0
-  END
+// Hours that count toward required hours:
+// regular (max 8 hrs/day) + supervisor-approved overtime.
+const SECONDS_WORKED_SQL = HOURS.credited;
+
+// Extra overtime columns for attendance lists.
+const OVERTIME_COLUMNS_SQL = `
+  ${HOURS.raw} AS raw_seconds_worked,
+  ${HOURS.overtime} AS overtime_seconds,
+  ${HOURS.overtimeStatus} AS overtime_status,
+  a.overtime_comment,
+  a.overtime_reviewed_at
 `;
+
+function mapOvertime(record) {
+  const { raw_seconds_worked, overtime_seconds, ...rest } = record;
+  return {
+    ...rest,
+    raw_hours: toHours(raw_seconds_worked),
+    overtime_hours: toHours(overtime_seconds),
+  };
+}
 
 // One row per student assigned to the supervisor ($1).
 // $2 is today's date in the Philippines.
@@ -186,7 +203,12 @@ const getDashboard = async (req, res) => {
          (SELECT COUNT(*)
             FROM weekly_reports wr
            WHERE wr.supervisor_id = $1
-             AND wr.status <> 'PENDING') AS reviewed_by_me`,
+             AND wr.status <> 'PENDING') AS reviewed_by_me,
+
+         (SELECT COUNT(*)
+            FROM attendance a
+            JOIN my_students s ON s.user_id = a.user_id
+           WHERE ${HOURS.overtimeStatus} = 'PENDING') AS pending_overtime`,
       [req.user.id, today]
     );
 
@@ -202,6 +224,7 @@ const getDashboard = async (req, res) => {
         missing_time_out: toNumber(row.missing_time_out),
         pending_reports: toNumber(row.pending_reports),
         reviewed_by_me: toNumber(row.reviewed_by_me),
+        pending_overtime: toNumber(row.pending_overtime),
       },
     });
   } catch (error) {
@@ -278,6 +301,7 @@ const getStudentDetails = async (req, res) => {
          a.time_out_status,
          (a.photo_proof_path IS NOT NULL) AS has_photo_proof,
          ${SECONDS_WORKED_SQL} AS seconds_worked,
+         ${OVERTIME_COLUMNS_SQL},
          ${ATTENDANCE_STATUS_SQL} AS status
        FROM attendance a
        WHERE a.user_id = $1
@@ -295,7 +319,8 @@ const getStudentDetails = async (req, res) => {
          supervisor_comment,
          supervisor_id,
          reviewed_at,
-         created_at
+         created_at,
+         summary
        FROM weekly_reports
        WHERE user_id = $1
        ORDER BY week_start DESC, created_at DESC`,
@@ -307,7 +332,7 @@ const getStudentDetails = async (req, res) => {
       date: today,
       student: mapStudent(studentResult.rows[0]),
       attendance: attendanceResult.rows.map((record) => {
-        const { seconds_worked, ...rest } = record;
+        const { seconds_worked, ...rest } = mapOvertime(record);
         return {
           ...rest,
           hours_worked: Number((toNumber(seconds_worked) / 3600).toFixed(2)),
@@ -354,6 +379,7 @@ const getAttendanceByDate = async (req, res) => {
          a.time_out_status,
          (a.photo_proof_path IS NOT NULL) AS has_photo_proof,
          ${SECONDS_WORKED_SQL} AS seconds_worked,
+         ${OVERTIME_COLUMNS_SQL},
          CASE
            WHEN a.id IS NULL THEN 'NO_RECORD'
            ELSE ${ATTENDANCE_STATUS_SQL}
@@ -378,7 +404,7 @@ const getAttendanceByDate = async (req, res) => {
     );
 
     const records = result.rows.map((record) => {
-      const { seconds_worked, ...rest } = record;
+      const { seconds_worked, ...rest } = mapOvertime(record);
       return {
         ...rest,
         approval_status: String(record.approval_status || "PENDING").toUpperCase(),
@@ -404,6 +430,84 @@ const getAttendanceByDate = async (req, res) => {
   } catch (error) {
     return serverError(res, error, "Supervisor attendance error",
       "Unable to load attendance records.");
+  }
+};
+
+// =====================================
+// APPROVE / REJECT OVERTIME
+// PATCH /api/supervisor/attendance/:attendanceId/overtime
+// body: { decision: "APPROVED" | "REJECTED", comment? }
+// Only for students assigned to this supervisor.
+// =====================================
+const reviewOvertime = async (req, res) => {
+  try {
+    const { attendanceId } = req.params;
+    const decision = String(req.body?.decision || "").trim().toUpperCase();
+    const comment = String(req.body?.comment || "").trim();
+
+    if (!UUID_PATTERN.test(attendanceId)) {
+      return res.status(400).json({ success: false, message: "Invalid attendance ID." });
+    }
+
+    if (!["APPROVED", "REJECTED"].includes(decision)) {
+      return res.status(400).json({
+        success: false,
+        message: "Decision must be APPROVED or REJECTED.",
+      });
+    }
+
+    if (comment.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "Comment must not exceed 1000 characters.",
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE attendance a
+       SET overtime_status = $1,
+           overtime_comment = NULLIF($2, ''),
+           overtime_reviewed_by = $3,
+           overtime_reviewed_at = NOW()
+       FROM ojt_profiles p
+       WHERE a.id = $4
+         AND p.user_id = a.user_id
+         AND p.supervisor_id = $3
+         AND a.time_out IS NOT NULL
+         AND ${HOURS.overtime} > 0
+       RETURNING
+         a.id,
+         ${HOURS.overtime} AS overtime_seconds,
+         a.overtime_status,
+         a.overtime_comment,
+         a.overtime_reviewed_at`,
+      [decision, comment, req.user.id, attendanceId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "No overtime found for this record, or the student is not assigned to you.",
+      });
+    }
+
+    const row = result.rows[0];
+
+    return res.json({
+      success: true,
+      message: decision === "APPROVED" ? "Overtime approved." : "Overtime rejected.",
+      attendance: {
+        id: row.id,
+        overtime_hours: toHours(row.overtime_seconds),
+        overtime_status: row.overtime_status,
+        overtime_comment: row.overtime_comment,
+        overtime_reviewed_at: row.overtime_reviewed_at,
+      },
+    });
+  } catch (error) {
+    return serverError(res, error, "Supervisor overtime review error",
+      "Unable to save the overtime decision.");
   }
 };
 
@@ -460,5 +564,6 @@ module.exports = {
   getMyStudents,
   getStudentDetails,
   getAttendanceByDate,
+  reviewOvertime,
   getProfile,
 };

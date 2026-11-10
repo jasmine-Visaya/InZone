@@ -15,6 +15,7 @@ const geofenceRoutes = require("../routes/geofenceRoutes");
 const attendanceRoutes = require("../routes/attendanceRoutes");
 const weeklyReportRoutes = require("../routes/weeklyReportRoutes");
 const placesRoutes = require("../routes/placesRoutes");
+const holidayRoutes = require("../routes/holidayRoutes");
 
 // =====================================
 // SUPERVISOR ROUTES
@@ -80,6 +81,11 @@ app.use("/api/geofences", geofenceRoutes);
 app.use("/api/attendance", attendanceRoutes);
 
 app.use("/api/weekly-reports", weeklyReportRoutes);
+
+// =====================================
+// HOLIDAYS (read: everyone, write: admin)
+// =====================================
+app.use("/api/holidays", holidayRoutes);
 
 // =====================================
 // SUPERVISOR - DAILY ACCOMPLISHMENTS

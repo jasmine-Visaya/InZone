@@ -3,6 +3,14 @@ const pool = require("../src/config/database");
 const { getPhilippineDate } = require("../utils/dateTime");
 const supabase = require("../src/config/supabase");
 const crypto = require("crypto");
+const {
+  REGULAR_DAILY_HOURS,
+  workHoursSql,
+  splitSeconds,
+  toHours,
+} = require("../utils/workHours");
+
+const HOURS = workHoursSql("");
 
 /* =========================================
    HELPER: VALIDATE GPS COORDINATES
@@ -982,11 +990,18 @@ const timeOut = async (req, res) => {
     const secondsWorked =
       workedSeconds % 60;
 
+    const split = splitSeconds(workedSeconds, updatedAttendance.overtime_status);
+
     return res.json({
       success: true,
       message:
-        "Time-out recorded successfully.",
+        split.overtime > 0
+          ? "Time-out recorded. Your overtime is waiting for supervisor approval."
+          : "Time-out recorded successfully.",
       attendance: updatedAttendance,
+      regular_hours: toHours(split.regular),
+      overtime_hours: toHours(split.overtime),
+      overtime_status: split.status,
       hours_worked: {
         hours: hoursWorked,
         minutes: minutesWorked,
@@ -1059,14 +1074,19 @@ const getMyAttendanceHistory = async (req, res) => {
         supervisor_comment,
         reviewed_at,
 
-        CASE
-          WHEN time_in IS NOT NULL
-            AND time_out IS NOT NULL
-          THEN EXTRACT(
-            EPOCH FROM (time_out - time_in)
-          )
-          ELSE 0
-        END AS seconds_worked
+        -- Raw time between time in and time out
+        ${HOURS.raw} AS raw_seconds_worked,
+
+        -- Regular (max ${REGULAR_DAILY_HOURS} hrs) + overtime split
+        ${HOURS.regular} AS regular_seconds,
+        ${HOURS.overtime} AS overtime_seconds,
+        ${HOURS.overtimeStatus} AS overtime_status,
+        overtime_comment,
+        overtime_reviewed_at,
+
+        -- Hours that count toward required hours:
+        -- regular + supervisor-approved overtime
+        ${HOURS.credited} AS seconds_worked
 
       FROM attendance
       WHERE user_id = $1
@@ -1085,18 +1105,20 @@ const getMyAttendanceHistory = async (req, res) => {
       return {
         ...record,
         seconds_worked: secondsWorked,
-        hours_worked: Number(
-          (secondsWorked / 3600).toFixed(2)
-        ),
+        hours_worked: toHours(secondsWorked),
+        raw_seconds_worked:
+          Number(record.raw_seconds_worked) || 0,
+        regular_hours: toHours(record.regular_seconds),
+        overtime_hours: toHours(record.overtime_seconds),
       };
     });
 
     return res.json({
       success: true,
       count: attendance.length,
-      total_hours: Number(
-        (totalSeconds / 3600).toFixed(2)
-      ),
+      // Regular hours + approved overtime only
+      total_hours: toHours(totalSeconds),
+      regular_daily_hours: REGULAR_DAILY_HOURS,
       attendance,
     });
 

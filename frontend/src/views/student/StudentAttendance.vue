@@ -112,6 +112,11 @@ interface AttendanceRecord {
 
   seconds_worked?: number;
 
+  // Overtime beyond 8 hrs; counts only once the supervisor approves it.
+  overtime_hours?: number;
+
+  overtime_status?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
 }
 
 interface HistoryResponse {
@@ -1669,6 +1674,21 @@ onIonViewWillEnter(() => {
 
                   </strong>
 
+                  <small
+                    v-if="record.overtime_status && record.overtime_status !== 'NONE'"
+                    class="overtime-note"
+                    :class="record.overtime_status.toLowerCase()"
+                  >
+                    + {{ formatHours(record.overtime_hours ?? 0) }} OT ·
+                    {{
+                      record.overtime_status === 'APPROVED'
+                        ? 'approved'
+                        : record.overtime_status === 'REJECTED'
+                          ? 'not approved'
+                          : 'waiting for approval'
+                    }}
+                  </small>
+
                 </div>
 
               </div>
@@ -2016,6 +2036,22 @@ onIonViewWillEnter(() => {
 </template>
 
 <style scoped>
+.overtime-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #966e20;
+}
+
+.overtime-note.approved {
+  color: #087a58;
+}
+
+.overtime-note.rejected {
+  color: #b1443d;
+}
+
 
 /* ======================================*
 
