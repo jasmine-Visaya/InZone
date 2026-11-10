@@ -7,8 +7,8 @@
 //   getHolidaysBetween(from, to)   -> holiday rows in range
 //   getWeekInfo(anyDateInWeek)     -> Mon–Sun week with workdays/holidays
 //
-// For the early time-out rule (Loui): `await getHoliday(today)`
-// returns the holiday when today is one, so time out can be allowed early.
+// Columns match Loui's isHoliday() in attendanceController
+// (holiday_date, holiday_name, holiday_type).
 
 const pool = require("../src/config/database");
 
@@ -54,14 +54,14 @@ function mapHoliday(row) {
   return {
     id: row.id,
     date: row.holiday_date,
-    name: row.name,
-    type: row.type,
+    name: row.holiday_name,
+    type: row.holiday_type,
   };
 }
 
 async function getHolidaysBetween(from, to, db = pool) {
   const result = await db.query(
-    `SELECT id, TO_CHAR(holiday_date, 'YYYY-MM-DD') AS holiday_date, name, type
+    `SELECT id, TO_CHAR(holiday_date, 'YYYY-MM-DD') AS holiday_date, holiday_name, holiday_type
      FROM holidays
      WHERE holiday_date BETWEEN $1::date AND $2::date
      ORDER BY holiday_date`,

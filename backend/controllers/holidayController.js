@@ -16,11 +16,23 @@ function readHolidayBody(body = {}) {
   return { date, name, type };
 }
 
+// One holiday per date (the table may not have a unique constraint).
+async function dateTaken(date, exceptId = null) {
+  const result = await pool.query(
+    `SELECT 1 FROM holidays
+     WHERE holiday_date = $1::date
+       AND ($2::bigint IS NULL OR id <> $2::bigint)
+     LIMIT 1`,
+    [date, exceptId]
+  );
+  return result.rows.length > 0;
+}
+
 const SELECT_COLUMNS = `
   id,
   TO_CHAR(holiday_date, 'YYYY-MM-DD') AS date,
-  name,
-  type,
+  holiday_name AS name,
+  holiday_type AS type,
   created_at,
   updated_at
 `;
@@ -66,8 +78,12 @@ const createHoliday = async (req, res) => {
   if (input.error) return res.status(400).json({ success: false, message: input.error });
 
   try {
+    if (await dateTaken(input.date)) {
+      return res.status(409).json({ success: false, message: "A holiday already exists on that date." });
+    }
+
     const result = await pool.query(
-      `INSERT INTO holidays (holiday_date, name, type, created_by)
+      `INSERT INTO holidays (holiday_date, holiday_name, holiday_type, created_by)
        VALUES ($1::date, $2, $3, $4)
        RETURNING ${SELECT_COLUMNS}`,
       [input.date, input.name, input.type, req.user.id]
@@ -97,9 +113,13 @@ const updateHoliday = async (req, res) => {
   if (input.error) return res.status(400).json({ success: false, message: input.error });
 
   try {
+    if (await dateTaken(input.date, id)) {
+      return res.status(409).json({ success: false, message: "A holiday already exists on that date." });
+    }
+
     const result = await pool.query(
       `UPDATE holidays
-       SET holiday_date = $1::date, name = $2, type = $3, updated_at = NOW()
+       SET holiday_date = $1::date, holiday_name = $2, holiday_type = $3, updated_at = NOW()
        WHERE id = $4
        RETURNING ${SELECT_COLUMNS}`,
       [input.date, input.name, input.type, id]
