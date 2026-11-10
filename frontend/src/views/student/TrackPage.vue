@@ -238,6 +238,44 @@ const canUploadReport = computed(() =>
   !submitting.value && !uploadingReport.value && reportPhotos.value.length > 0
 );
 
+const philippineSeconds = computed(() => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Manila',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(currentTime.value));
+
+  const getPart = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value || 0);
+
+  return (
+    getPart('hour') * 3600 +
+    getPart('minute') * 60 +
+    getPart('second')
+  );
+});
+
+const isBeforeTimeOut = computed(
+  () => philippineSeconds.value < 17 * 3600
+);
+
+const timeOutCountdown = computed(() => {
+  const remaining = Math.max(
+    0,
+    17 * 3600 - philippineSeconds.value
+  );
+
+  const hours = Math.floor(remaining / 3600);
+  const minutes = Math.floor((remaining % 3600) / 60);
+  const seconds = remaining % 60;
+
+  return [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, '0'))
+    .join(':');
+});
+
 const canTimeOut = computed(() => {
   return (
     isApproved.value &&
@@ -246,6 +284,7 @@ const canTimeOut = computed(() => {
     hasTimedIn.value &&
     !hasTimedOut.value &&
     hasUploadedReport.value &&
+    !isBeforeTimeOut.value &&
     !checking.value &&
     !submitting.value &&
     !uploadingReport.value
@@ -1861,6 +1900,19 @@ onUnmounted(() => {
               v-else-if="hasTimedIn"
               class="attendance-actions"
             >
+              <!-- COUNTDOWN: hintayin muna mag-5 PM -->
+              <div
+                v-if="isBeforeTimeOut"
+                class="timeout-countdown"
+              >
+                <IonIcon :icon="timeOutline" />
+
+                <div>
+                  <strong>Time Out Available At 5:00 PM</strong>
+                  <span>{{ timeOutCountdown }}</span>
+                  <p>Please wait until the scheduled time.</p>
+                </div>
+              </div>
               <button
                 type="button"
                 class="timeout-button"
@@ -2973,5 +3025,45 @@ button:not(:disabled):active {
  .page-header h1 {font-size:27px;}
  .header-icon {display:none;}
  .distance-grid,.attendance-times {grid-template-columns:1fr;}
+}
+
+.timeout-countdown {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 17px;
+  margin-bottom: 14px;
+  border: 1px solid #dcebe2;
+  border-radius: 14px;
+  background: #f1f8f4;
+  color: #0b7959;
+}
+
+.timeout-countdown > ion-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.timeout-countdown div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.timeout-countdown strong {
+  font-size: 12px;
+}
+
+.timeout-countdown span {
+  font-size: 25px;
+  font-weight: 850;
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeout-countdown p {
+  margin: 0;
+  font-size: 11px;
+  color: #789487;
 }
 </style>

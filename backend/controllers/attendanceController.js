@@ -81,6 +81,50 @@ async function getApprovedOjtProfile(userId) {
   };
 }
 
+
+/* =========================================
+   HELPER: HOLIDAY AND PHILIPPINE TIME
+========================================= */
+
+async function isHoliday(date) {
+  const result = await pool.query(
+    `SELECT holiday_name, holiday_type
+     FROM holidays
+     WHERE holiday_date = $1
+     LIMIT 1`,
+    [date]
+  );
+
+  return result.rows[0] || null;
+}
+
+
+function getPhilippineTime() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Manila",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+
+  const getPart = (type) =>
+    Number(parts.find((part) => part.type === type).value);
+
+  const hour = getPart("hour");
+  const minute = getPart("minute");
+  const second = getPart("second");
+
+  return {
+    hour,
+    minute,
+    second,
+    minutes: hour * 60 + minute,
+  };
+}
+
+
+
 /* =========================================
    HELPER: CALCULATE GEOFENCE DISTANCE
 ========================================= */
@@ -268,8 +312,21 @@ const timeIn = async (req, res) => {
       });
     }
 
-    // Philippine date
-    const today = getPhilippineDate();
+
+      // Philippine date
+      const today = getPhilippineDate();
+
+      // Check if today is a holiday
+      const holiday = await isHoliday(today);
+
+      if (holiday) {
+        return res.status(403).json({
+          success: false,
+          code: "HOLIDAY",
+          message: `${holiday.holiday_name}. No attendance is required today.`,
+        });
+      }
+
 
     // Check duplicate time-in
     const existingAttendance = await pool.query(
@@ -452,6 +509,18 @@ const uploadAccomplishmentReport = async (req, res) => {
     }
 
     const today = getPhilippineDate();
+
+    // Check if today is a holiday
+    const holiday = await isHoliday(today);
+
+    if (holiday) {
+      return res.status(403).json({
+        success: false,
+        code: "HOLIDAY",
+        message: `${holiday.holiday_name}. No attendance is required today.`,
+      });
+    }
+
     const attendanceId = req.params.attendanceId;
 
     const lookup = await pool.query(
@@ -779,7 +848,38 @@ const timeOut = async (req, res) => {
       });
     }
 
-    const today = getPhilippineDate();
+    
+      const today = getPhilippineDate();
+
+      // Check if today is a holiday
+      const holiday = await isHoliday(today);
+
+      if (holiday) {
+        return res.status(403).json({
+          success: false,
+          code: "HOLIDAY",
+          message: `${holiday.holiday_name}. No attendance is required today.`,
+        });
+      }
+
+      // Check Philippine time
+      const currentTime = getPhilippineTime();
+      const requiredTime = 17 * 60;
+
+      if (currentTime.minutes < requiredTime) {
+        const remainingSeconds =
+          (requiredTime - currentTime.minutes) * 60 -
+          currentTime.second;
+
+        return res.status(403).json({
+          success: false,
+          code: "TIME_OUT_TOO_EARLY",
+          message: "Time Out is only allowed starting at 5:00 PM.",
+          remaining_seconds: remainingSeconds,
+          required_time: "5:00 PM",
+        });
+      }
+
 
     // Find today's attendance
     const attendanceResult = await pool.query(
